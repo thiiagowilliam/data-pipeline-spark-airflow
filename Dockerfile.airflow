@@ -1,0 +1,11 @@
+FROM apache/airflow:2.8.1
+
+USER airflow
+
+RUN pip install --no-cache-dir \
+    faker \
+    numpy \
+    pyspark \
+    apache-airflow \
+    apache-airflow-providers-apache-spark \
+    apache-airflow-providers-amazon

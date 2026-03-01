@@ -1,0 +1,53 @@
+# 1️⃣ Namespace (deve vir primeiro)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: datalake-dbt
+---
+# 2️⃣ ConfigMap com profiles.yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dbt-profiles
+  namespace: dbt
+data:
+  profiles.yml: |
+    datalake:
+      target: dev
+      outputs:
+        dev:
+          type: postgres
+          host: postgres.datalake-db.svc.cluster.local
+          user: admin
+          password: admin
+          port: 5432
+          dbname: origem_db
+          schema: public
+---
+# 3️⃣ Deployment do DBT
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dbt
+  namespace: dbt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dbt
+  template:
+    metadata:
+      labels:
+        app: dbt
+    spec:
+      containers:
+      - name: dbt
+        image: fishtownanalytics/dbt:1.7.1
+        command: ["sleep", "infinity"]  
+        volumeMounts:
+        - name: dbt-profiles
+          mountPath: /root/.dbt
+      volumes:
+      - name: dbt-profiles
+        configMap:
+          name: dbt-profiles

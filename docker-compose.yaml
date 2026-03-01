@@ -1,0 +1,129 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin
+      - POSTGRES_DB=origem_db
+    ports:
+      - "5432:5432"
+    networks:
+      - data_connect
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=admin123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - data_connect
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    restart: unless-stopped
+
+  spark-master:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spark-master
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=admin123
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    volumes:
+      - ./events:/app/events
+      - ./airflow/dags/scripts:/app/scripts
+    networks:
+      - data_connect
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "7077"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  spark-worker:
+    image: apache/spark:3.5.0
+    container_name: spark-worker
+    user: root
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=admin123
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./events:/app/events
+      - ./airflow/dags/scripts:/app/scripts
+    networks:
+      - data_connect
+
+  spark-history-server:
+    image: apache/spark:3.5.0
+    container_name: spark-history
+    user: root
+    depends_on:
+      - spark-master
+    entrypoint: ["/bin/bash", "-c", "mkdir -p /opt/spark/events && /opt/spark/bin/spark-class org.apache.spark.deploy.history.HistoryServer"]
+    environment:
+      - SPARK_HISTORY_OPTS=-Dspark.history.fs.logDirectory=file:/opt/spark/events
+    ports:
+      - "18080:18080"
+    volumes:
+      - ./events:/opt/spark/events
+    networks:
+      - data_connect
+
+  airflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    container_name: airflow
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor 
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW_CONN_POSTGRES_DEFAULT=postgresql://admin:admin@postgres:5432/origem_db
+      - AIRFLOW_CONN_SPARK_DEFAULT=spark://spark-master:7077
+      - MINIO_ENDPOINT=http://minio:9000 
+      - MINIO_ACCESS_KEY=admin
+      - MINIO_SECRET_KEY=admin123
+      - MINIO_BUCKET=datalake
+    ports:
+      - "8085:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./contracts:/opt/airflow/contracts
+    command: bash -c "airflow db init && airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin && airflow webserver & airflow scheduler"  # Rodando webserver e scheduler
+    depends_on:
+      minio:
+        condition: service_healthy
+      spark-master:
+        condition: service_healthy
+    networks:
+      - data_connect
+    restart: unless-stopped
+
+networks:
+  data_connect:
+    driver: bridge
+
+volumes:
+  minio_data:
