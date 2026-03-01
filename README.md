@@ -127,7 +127,7 @@ k3d cluster create --config k3d-datalake.yaml
 First, add the required Helm repositories:
 ```bash
 helm repo add apache-airflow https://airflow.apache.org
-helm repo add spark-operator https://googlecloudplatform.github.io/spark-on-k8s-operator
+helm repo add spark-operator https://kubeflow.github.io/spark-operator
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo update
 ```
