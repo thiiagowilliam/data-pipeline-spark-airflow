@@ -1,6 +1,6 @@
 # spark_jobs/bronze/ingest_postgres.py
 import os
-from pyspark.sql import SparkSession
+from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import current_timestamp
 
 def get_spark_session() -> SparkSession:
@@ -16,6 +16,15 @@ def get_spark_session() -> SparkSession:
         .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
         .getOrCreate()
     )
+
+def add_ingestion_timestamp(df: DataFrame) -> DataFrame:
+    """
+    Adds a metadata column with the current timestamp to track ingestion time.
+    
+    :param df: Input DataFrame.
+    :return: DataFrame with the 'ingestion_tms' column added.
+    """
+    return df.withColumn("ingestion_tms", current_timestamp())
 
 def main():
     """
@@ -60,8 +69,8 @@ def main():
         spark.log.error(f"Failed to read from PostgreSQL: {e}")
         raise
 
-    # --- Add Ingestion Timestamp ---
-    df_bronze = df_raw.withColumn("ingestion_tms", current_timestamp())
+    # --- Apply Transformation ---
+    df_bronze = add_ingestion_timestamp(df_raw)
 
     spark.log.info(f"Writing {df_bronze.count()} rows to Bronze Delta table at {bronze_path}")
 
