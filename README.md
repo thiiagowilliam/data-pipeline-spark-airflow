@@ -1,200 +1,125 @@
-# Scalable Data Lakehouse: A Production-Ready Medallion Pipeline
+# Production-Grade Medallion Data Lakehouse on Kubernetes
 
-[![CI/CD - Lint & Test](https://github.com/your-username/pyspark-data-pipeline/actions/workflows/ci-cd.yaml/badge.svg)](https://github.com/your-username/pyspark-data-pipeline/actions/workflows/ci-cd.yaml)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/release/python-3110/)
-[![PySpark 3.5](https://img.shields.io/badge/PySpark-3.5-yellow.svg)](https://spark.apache.org/)
+Pipeline de dados end-to-end com arquitetura Medallion (Bronze, Silver, Gold) rodando nativamente no Kubernetes com elasticidade real via Apache Spark Kubernetes Operator, PySpark, Delta Lake e Airflow KubernetesExecutor.
+
+[![PySpark 3.5.1](https://img.shields.io/badge/PySpark-3.5.1-yellow.svg)](https://spark.apache.org/)
+[![Airflow 2.10.2](https://img.shields.io/badge/Airflow-2.10.2-blue.svg)](https://airflow.apache.org/)
+[![Delta Lake 3.2.0](https://img.shields.io/badge/Delta%20Lake-3.2.0-green.svg)](https://delta.io/)
+[![Spark Operator](https://img.shields.io/badge/Spark%20Operator-latest-orange.svg)](https://github.com/kubeflow/spark-operator)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-grey.svg?logo=kubernetes)](https://kubernetes.io/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-
-This project demonstrates a production-grade, end-to-end, and elastic data pipeline built on a modern data stack. It implements a **Medallion Lakehouse architecture** orchestrated by **Airflow**, with **PySpark** jobs running elastically on a **Kubernetes** cluster via the **Spark on Kubernetes Operator**.
-
-The primary goal is to provide a blueprint for building scalable, cost-efficient, and maintainable data platforms that are ready for production workloads.
+[![k3d](https://img.shields.io/badge/k3d-latest-brightgreen.svg)](https://k3d.io/)
+[![Great Expectations](https://img.shields.io/badge/Great%20Expectations-latest-purple.svg)](https://greatexpectations.io/)
 
 ---
 
-## Core Concepts Demonstrated
+## Arquitetura: Medallion Lakehouse Elástico
 
-*   **Medallion Architecture:** Data is progressively refined through Bronze (raw), Silver (cleaned), and Gold (aggregated) layers using Delta Lake for reliability and time travel.
-*   **True Elasticity with Spark on Kubernetes:** Jobs request resources on-demand, and the cluster scales executors up and down automatically (`spark.dynamicAllocation.enabled=true`). This is the key to a cost-effective and scalable platform.
-*   **Infrastructure as Code (IaC):** The entire platform (Airflow, MinIO, Postgres, Spark Operator) is deployed and managed declaratively using Helm charts on a local `k3d` Kubernetes cluster.
-*   **CI/CD & Data Quality:** The pipeline includes a full CI/CD workflow using GitHub Actions for linting, testing, and image building, plus data quality gates with Great Expectations.
-*   **Observability:** Centralized logging for Airflow and a persistent Spark History Server to debug and monitor job performance.
-
-## Architecture
-
-The diagram below illustrates the flow of data from a transactional Postgres database to an aggregated Gold layer in the MinIO Data Lake, orchestrated by Airflow on Kubernetes.
+A pipeline segue o padrão Medallion para refinar dados progressivamente, com orquestração via Airflow e processamento distribuído e elástico via Spark on Kubernetes.
 
 ```mermaid
 graph TD
-    subgraph "Kubernetes Cluster"
-        direction TB
-
-        subgraph "Orchestration (Airflow)"
-            A[Airflow Scheduler & Webserver] --> B{KubernetesExecutor};
-        end
-
-        subgraph "Spark Jobs (Elastic)"
-            direction LR
-            D[Spark Driver Pod] --> E1[Executor Pod 1];
-            D --> E2[Executor Pod 2];
-            D --> EN[Executor Pod N ...];
-        end
-
-        subgraph "Data Services"
-            F[PostgreSQL];
-            G[MinIO Data Lake];
-        end
-
-        subgraph "Operators"
-            H[Spark Operator];
-        end
-
+    subgraph "Fontes de Dados"
+        A[PostgreSQL Database]
     end
 
-    B -- Creates --> D;
-    H -- Manages --> D;
-    H -- Manages --> E1;
-    H -- Manages --> E2;
-    H -- Manages --> EN;
+    subgraph "Kubernetes Cluster (k3d)"
+        subgraph "Data Lake (MinIO)"
+            B[<font color=brown>Bronze Layer</font> - Raw Delta]
+            C[<font color=silver>Silver Layer</font> - Cleaned/Validated Delta]
+            D[<font color=gold>Gold Layer</font> - Aggregated Delta]
+        end
 
+        subgraph "Orquestração"
+             E[Airflow (KubernetesExecutor)] -- Triggers CRD --> F{Spark Operator};
+        end
+        
+        subgraph "Processamento Elástico (On-Demand)"
+            F -- Creates --> G[Spark Driver Pod];
+            G -- "dynamicAllocation" --> H[Executor Pod 1..N];
+        end
+    end
 
-    F -- "1. Ingest (JDBC)" --> D;
-    D -- "2. Write Raw" --> G_Bronze[<font color=brown>Bronze Delta Table</font>];
-    G -- Contains --> G_Bronze;
+    A -- "1. Ingest (JDBC)" --> G;
+    G -- "Write Raw" --> B;
+    B -- "Read Raw" --> G;
+    G -- "Clean, Deduplicate, Validate & MERGE" --> C;
+    C -- "Read Cleaned" --> G;
+    G -- "Aggregate & Write" --> D;
 
-    G_Bronze -- "3. Read Raw" --> D;
-    D -- "4. Clean, Validate, Merge" --> G_Silver[<font color=silver>Silver Delta Table</font>];
-    G -- Contains --> G_Silver;
-
-    G_Silver -- "5. Read Cleaned" --> D;
-    D -- "6. Aggregate & Write" --> G_Gold[<font color=gold>Gold Delta Table</font>];
-    G -- Contains --> G_Gold;
-
-    style G_Bronze fill:#CD7F32,stroke:#333,stroke-width:2px;
-    style G_Silver fill:#C0C0C0,stroke:#333,stroke-width:2px;
-    style G_Gold fill:#FFD700,stroke:#333,stroke-width:2px;
+    style B fill:#CD7F32,stroke:#333,stroke-width:2px;
+    style C fill:#C0C0C0,stroke:#333,stroke-width:2px;
+    style D fill:#FFD700,stroke:#333,stroke-width:2px;
 ```
-
-## The Power of Elasticity: Why Spark on Kubernetes Operator?
-
-In traditional setups, a Spark cluster's resources (CPU/memory) are fixed. This leads to two problems:
-1.  **Waste:** Resources are idle when no jobs are running.
-2.  **Bottlenecks:** A large job may starve for resources, while a small job doesn't need the full cluster.
-
-The **Spark on Kubernetes Operator** combined with **dynamic allocation** solves this. Each Spark job is a custom Kubernetes resource (`SparkApplication`). The operator watches for these resources and launches a dedicated, perfectly-sized Spark cluster for each one.
-
--   **Scale-Up:** When a job starts, it requests the executors it needs. Kubernetes schedules new pods.
--   **Scale-Down:** When executors are idle, they are automatically removed to free up resources.
--   **Isolation:** Jobs run in separate Spark clusters, preventing interference.
-
-**This project is configured to demonstrate this behavior out-of-the-box.**
-> *(Placeholder for a GIF showing `kubectl get pods -w` with Spark executor pods appearing and disappearing during a DAG run.)*
 
 ---
 
-## Tech Stack
+## Por que Spark Kubernetes Operator?
 
-*   **Containerization & K8s:** Docker, `k3d` (local K3s cluster)
-*   **Infrastructure:** Kubernetes, Helm
-*   **Orchestration:** Apache Airflow (with KubernetesExecutor)
-*   **Processing:** PySpark 3.5, Delta Lake
-*   **Storage:** MinIO (S3-compatible), PostgreSQL
-*   **Data Quality:** Great Expectations
-*   **CI/CD:** GitHub Actions
-*   **Tooling:** `black`, `ruff`, `mypy`, `pytest`
+Em setups tradicionais (Spark Standalone), os workers são **fixos**: você aloca recursos e paga por eles mesmo quando ociosos. O **Spark Kubernetes Operator** muda o jogo:
 
----
+1.  **Zero Cluster Persistente:** Jobs são submetidos como CRDs (`SparkApplication`). O operator cria e destrói pods de forma on-demand.
+2.  **`dynamicAllocation` Real:** Configurado com `minExecutors` e `maxExecutors`, o Spark adiciona/remove executors *durante a execução* baseado na carga (shuffles, etc.), otimizando o uso de recursos.
+3.  **Isolamento e Custo Zero:** Cada job roda em seu próprio conjunto de pods, liberando 100% dos recursos ao terminar.
 
-## Prerequisites
-
-*   [Docker](https://docs.docker.com/get-docker/)
-*   [kubectl](https://kubernetes.io/docs/tasks/tools/)
-*   [helm](https://helm.sh/docs/intro/install/)
-*   [k3d](https://k3d.io/v5.6.0/#installation)
+> *[Placeholder para GIF: `kubectl get pods -n spark-jobs -w` mostrando pods de executors escalando de 1 para 8 e depois terminando.]*
 
 ---
 
-## Quickstart Guide
+## Como Rodar em 4 Minutos
 
-**1. Create the Local Kubernetes Cluster**
-```bash
-# This creates a k3d cluster with 1 server and 3 agent nodes
-k3d cluster create --config k3d-datalake.yaml
-```
+**Pré-requisitos:** Docker, `k3d`, `helm`, `kubectl`.
 
-**2. Deploy Infrastructure with Helm**
+1.  **Clone o Repositório**
+    ```bash
+    git clone https://github.com/thiiagowilliam/data-pipeline-spark-airflow.git
+    cd data-pipeline-spark-airflow
+    ```
 
-First, add the required Helm repositories:
-```bash
-helm repo add apache-airflow https://airflow.apache.org
-helm repo add spark-operator https://kubeflow.github.io/spark-operator
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm repo update
-```
+2.  **Crie o Cluster Kubernetes Local**
+    ```bash
+    k3d cluster create --config infra/kubernetes/k3d-datalake.yaml
+    ```
 
-Now, deploy the services into their dedicated namespaces:
-```bash
-# Deploy Spark Operator, MinIO, and Postgres
-helm install spark-operator spark-operator/spark-operator --namespace spark-operator --create-namespace --values ./infra/kubernetes/charts/spark-operator-values.yaml
-helm install minio bitnami/minio --namespace minio --create-namespace --values ./infra/kubernetes/charts/minio-values.yaml
-helm install postgres bitnami/postgresql --namespace postgres --create-namespace --values ./infra/kubernetes/charts/postgres-values.yaml
+3.  **Construa e Importe as Imagens Customizadas**
+    ```bash
+    # Build
+    docker build -t pyspark-lakehouse-spark:latest -f infra/docker/Dockerfile.spark .
+    docker build -t pyspark-lakehouse-airflow:latest -f infra/docker/Dockerfile.airflow .
+    
+    # Import para o cluster k3d (mais rápido que um registry local)
+    k3d image import pyspark-lakehouse-spark:latest pyspark-lakehouse-airflow:latest --cluster datalake
+    ```
 
-# Deploy Airflow
-helm install airflow apache-airflow/airflow --namespace airflow --create-namespace --values ./infra/kubernetes/charts/airflow-values.yaml
-```
+4.  **Deploy da Infraestrutura via Helm**
+    ```bash
+    bash infra/kubernetes/setup-k8s.sh
+    ```
+    Aguarde os pods nos namespaces `airflow`, `minio`, e `postgres` estarem no estado `Running`. Use `kubectl get pods -A -w`.
 
-**3. Create Kubernetes Secrets**
+5.  **Acesse, Ative e Execute a Pipeline**
+    -   **Airflow UI:** `http://localhost:8080` (user: `airflow`, pass: `airflow`)
+    -   **MinIO Console:** `http://localhost:9001` (user: `minio`, pass: `minio123`)
 
-We store credentials securely in Kubernetes secrets, which are mounted into Airflow.
-```bash
-# Create secrets for Postgres and MinIO connections
-kubectl apply -f ./infra/kubernetes/secrets.yaml
-```
+    No Airflow UI, ative a DAG `medallion_sales_pipeline` e dispare uma execução manual.
 
-**4. Build and Load Custom Docker Images**
+> *[Placeholder para GIF: Navegação no Airflow UI, ativando e executando a DAG com sucesso.]*
 
-The Spark jobs and Airflow DAGs require custom images with all dependencies.
-```bash
-# Build and load the images into the k3d cluster's registry
-eval $(k3d registry create local-registry --port 5000)
-docker build -t localhost:5000/pyspark-basic-spark:latest -f Dockerfile.spark .
-docker build -t localhost:5000/pyspark-basic-airflow:latest -f Dockerfile.airflow .
-docker push localhost:5000/pyspark-basic-spark:latest
-docker push localhost:5000/pyspark-basic-airflow:latest
-```
-
-**5. Access the Services**
-
-Use `kubectl port-forward` to access the UIs:
-```bash
-# Airflow UI (user: airflow, pass: airflow)
-kubectl port-forward svc/airflow-webserver 8080:8080 --namespace airflow
-
-# MinIO Console (user: minio, pass: minio123)
-kubectl port-forward svc/minio 9001:9001 --namespace minio
-```
-
-**6. Run the Pipeline**
-
--   Navigate to the Airflow UI at `http://localhost:8080`.
--   Enable and trigger the `medallion_sales_pipeline` DAG.
--   Watch the pods in another terminal with `kubectl get pods -n spark-jobs -w` to see the Spark jobs and their executors spin up and down!
+> *[Placeholder para GIF: Navegação no MinIO Console mostrando as pastas `bronze`, `silver` e `gold` sendo populadas com arquivos Parquet/Delta.]*
 
 ---
 
-## Development & Testing
+## Decisões Técnicas e Lições Aprendidas
 
-**Linting and Formatting:**
-```bash
-# Format with Black
-black .
+-   **Idempotência com Delta `MERGE`:** A operação de `MERGE` (upsert) na camada Silver é crucial para garantir que re-execuções da pipeline não gerem duplicatas.
+-   **KubernetesExecutor:** Garante que cada task do Airflow rode em seu próprio pod, proporcionando isolamento total e permitindo que a submissão dos jobs Spark seja nativa do K8s.
+-   **k3d com `image import`:** Para desenvolvimento local, `k3d image import` é significativamente mais simples e rápido do que configurar e usar um registry local.
 
-# Lint with Ruff
-ruff check .
-```
+## Roadmap Futuro
 
-**Running Tests:**
-```bash
-# Run all PySpark unit tests
-pytest tests/
-```
+-   [ ] Implementar CI/CD com GitHub Actions (lint, test, build).
+-   [ ] Aprofundar validações com Great Expectations, gerando Data Docs.
+-   [ ] Adicionar uma pipeline de streaming com Kafka e Spark Structured Streaming.
+-   [ ] Integrar com Trino/Presto para consultas SQL federadas no Data Lakehouse.
+
+---
+_Este projeto foi lapidado seguindo um prompt detalhado com o Code Agent do Google Gemini._

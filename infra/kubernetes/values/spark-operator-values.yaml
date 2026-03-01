@@ -1,0 +1,32 @@
+# infra/kubernetes/values/spark-operator-values.yaml
+
+# Ativa o webhook, que é essencial para o funcionamento do operator.
+webhook:
+  enable: true
+  port: 8080
+
+# Define o namespace que o operator irá monitorar para novas SparkApplications.
+sparkJobNamespace: spark-jobs
+
+# Ativa e configura o Spark History Server para observability.
+sparkHistoryOpts:
+  enable: true
+  # Aponta para o bucket no MinIO onde os logs dos jobs serão armazenados.
+  logDirectory: "s3a://spark-logs/"
+  # Configurações de acesso ao S3 (MinIO).
+  # As credenciais serão lidas de um Kubernetes Secret.
+  s3:
+    endpoint: "http://minio.minio.svc:9000"
+    pathStyleAccess: true
+    secretName: "minio-credentials-secret" # Nome do secret que vamos criar
+
+# Garante que o RBAC (Role-Based Access Control) necessário seja criado.
+rbac:
+  create: true
+  
+# Cria uma ServiceAccount dedicada para os jobs Spark utilizarem.
+# Nossos SparkApplication CRDs irão referenciar esta SA.
+spark-user:
+  create: true
+  name: spark
+  namespace: spark-jobs

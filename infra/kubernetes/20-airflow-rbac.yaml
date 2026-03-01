@@ -1,0 +1,42 @@
+# infra/kubernetes/20-airflow-rbac.yaml
+# Define as permissões necessárias para o Airflow orquestrar jobs Spark.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: airflow-sa
+  namespace: airflow
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  # Esta Role concede permissões dentro do namespace 'spark-jobs'.
+  name: spark-app-manager
+  namespace: spark-jobs
+rules:
+  # Permissões para gerenciar os Custom Resources 'sparkapplications'.
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["sparkapplications"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  # Permissões para monitorar os pods dos jobs que foram criados.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: airflow-spark-binding
+  namespace: spark-jobs
+subjects:
+  # O 'ator' que receberá as permissões.
+  - kind: ServiceAccount
+    name: airflow-sa
+    namespace: airflow # O Service Account está no namespace do Airflow.
+roleRef:
+  # A Role (conjunto de permissões) que está sendo concedida.
+  kind: Role
+  name: spark-app-manager
+  apiGroup: rbac.authorization.k8s.io

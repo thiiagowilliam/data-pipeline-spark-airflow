@@ -1,0 +1,28 @@
+# infra/kubernetes/00-namespaces.yaml
+# Este arquivo define todos os namespaces necessários para a aplicação.
+# O prefixo '00-' garante que ele seja aplicado primeiro pelo kubectl.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: airflow
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: postgres
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: minio
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spark-operator
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spark-jobs

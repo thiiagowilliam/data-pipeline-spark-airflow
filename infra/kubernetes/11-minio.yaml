@@ -1,0 +1,77 @@
+# infra/kubernetes/11-minio.yaml
+# Define os recursos principais para o serviço do MinIO.
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pvc
+  namespace: minio
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi # Aloca 10Gi para o Data Lake.
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          # Usar uma tag de imagem específica e estável.
+          image: minio/minio:RELEASE.2023-09-07T21-51-29Z
+          imagePullPolicy: IfNotPresent
+          # Comando para iniciar o servidor MinIO e expor o console.
+          args:
+            - server
+            - /data
+            - --console-address
+            - ":9001"
+          # Monta as credenciais a partir do nosso Secret.
+          envFrom:
+            - secretRef:
+                name: minio-credentials
+          ports:
+            - containerPort: 9000 # Porta da API
+            - containerPort: 9001 # Porta do Console
+          # Monta o volume persistente onde os buckets e objetos serão armazenados.
+          volumeMounts:
+            - name: minio-storage
+              mountPath: /data
+      volumes:
+        - name: minio-storage
+          persistentVolumeClaim:
+            claimName: minio-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: minio
+spec:
+  type: ClusterIP # Expõe o serviço apenas dentro do cluster.
+  selector:
+    app: minio
+  ports:
+    - name: api
+      protocol: TCP
+      port: 9000
+      targetPort: 9000
+    - name: console
+      protocol: TCP
+      port: 9001
+      targetPort: 9001
