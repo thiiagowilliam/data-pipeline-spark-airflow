@@ -1,11 +1,34 @@
-FROM apache/airflow:2.8.1
+# Dockerfile.airflow
+# This Dockerfile builds the image for Airflow (scheduler, webserver, workers).
 
-USER airflow
+# Use a specific version of the official Airflow image with Python 3.11.
+# This ensures a stable and predictable environment.
+FROM apache/airflow:2.8.2-python3.11
 
+# Switch to the root user to install system-level dependencies if needed
+USER root
+
+# Install the required Airflow providers and Python libraries.
+# - apache-airflow-providers-cncf-kubernetes: For the SparkKubernetesOperator.
+# - delta-spark: For Delta Lake integration.
+# - great-expectations: For data quality validation tasks.
 RUN pip install --no-cache-dir \
-    faker \
-    numpy \
-    pyspark \
-    apache-airflow \
-    apache-airflow-providers-apache-spark \
-    apache-airflow-providers-amazon
+    apache-airflow-providers-cncf-kubernetes==7.6.0 \
+    delta-spark==3.1.0 \
+    great-expectations==0.18.9
+
+# Set the working directory.
+WORKDIR /opt/airflow
+
+# Copy the entire project directory into the image.
+# This makes all DAGs, SparkApplication YAMLs, and other resources
+# available within the Airflow pods, maintaining the project's directory structure.
+COPY . .
+
+# Grant ownership of the copied files to the airflow user for correct permissions.
+# The base image creates a user 'airflow' with uid/gid 50000.
+RUN chown -R 50000:0 /opt/airflow && \
+    chmod -R 775 /opt/airflow
+
+# Switch back to the non-root 'airflow' user for security.
+USER airflow

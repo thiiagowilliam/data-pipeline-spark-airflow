@@ -1,16 +1,22 @@
+# k3d-datalake.yaml
 apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
   name: datalake
 servers: 1
-agents: 2
+agents: 3 # 3 agents to allow for Spark executor scaling demonstrations
+kubeAPI:
+  hostPort: "6443"
 ports:
-  - port: "5432:5432"
-  - port: "9000:9000"
-  - port: "9001:9001"
-  - port: "8080:8080"
-  - port: "7077:7077"
-  - port: "8081:8081"
-  - port: "18080:18080"
-  - port: "8085:8080"
-volumes: []
+  - port: 80:80
+    nodeFilters:
+      - loadbalancer
+registries:
+  create:
+    name: local-registry
+    host: "0.0.0.0"
+    hostPort: "5000"
+  config: |
+    mirror:
+      endpoint:
+        - http://local-registry:5000

@@ -1,4 +1,55 @@
-data/*
-simulator/*
-minio_data/*
-minio_root/*
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtualenv
+.env
+.venv
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# IDEs / Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Project-specific
+.local_volumes/
+minio_data/
+minio_root/
+data/
+.airflow/
+airflow/logs/
+airflow-*.pid
+*.log
+notebooks/.ipynb_checkpoints
+metastore_db/
+spark-warehouse/
+.pytest_cache/

@@ -1,0 +1,38 @@
+# infra/kubernetes/charts/spark-operator-values.yaml
+
+# Enable webhook for the operator to function correctly
+webhook:
+  enable: true
+  port: 8080
+
+# Create the namespace where Spark jobs will be submitted
+sparkJobNamespace: spark-jobs
+
+# Enable and configure the Spark History Server for observability
+sparkHistoryOpts:
+  enable: true
+  # Configure the log directory to point to our MinIO S3 bucket
+  logDirectory: "s3a://spark-logs/"
+  # Provide S3 configuration to the History Server
+  s3:
+    endpoint: "http://minio.minio.svc.cluster.local:9000"
+    pathStyleAccess: true
+    ssl:
+      enabled: false
+    # The name of the secret containing 'accessKey' and 'secretKey'
+    secretName: "minio-credentials" 
+  
+  # Ensure the UI is accessible via a Kubernetes service
+  ui:
+    service:
+      type: ClusterIP
+
+# Enable RBAC creation for the operator
+rbac:
+  create: true
+  
+# Create a dedicated service account for Spark applications to use
+spark-user:
+  create: true
+  name: spark # The service account name referenced in our SparkApplication YAMLs
+  namespace: spark-jobs

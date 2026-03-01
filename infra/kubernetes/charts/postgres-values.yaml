@@ -1,0 +1,36 @@
+# infra/kubernetes/charts/postgres-values.yaml
+
+# Default credentials and database settings (for local development ONLY)
+auth:
+  username: "admin"
+  password: "password123"
+  database: "salesdb"
+
+# Enable persistence so the database is not lost on pod restart
+persistence:
+  enabled: true
+  size: 5Gi
+
+# Use an init script to create the 'sales' table and populate it with sample data.
+# This makes the project self-contained and ready to run immediately after deployment.
+primary:
+  initdb:
+    scripts:
+      01_create_sales_table.sql: |
+        CREATE TABLE public.sales (
+            id SERIAL PRIMARY KEY,
+            customer_id VARCHAR(50) NOT NULL,
+            product VARCHAR(100) NOT NULL,
+            qty INTEGER NOT NULL,
+            price NUMERIC(10, 2) NOT NULL,
+            order_date TIMESTAMP NOT NULL
+        );
+        -- Insert some sample data
+        INSERT INTO public.sales (customer_id, product, qty, price, order_date) VALUES
+        ('CUST-001', 'Laptop', 1, 1200.00, '2026-01-15 10:30:00'),
+        ('CUST-002', 'Mouse', 2, 25.50, '2026-01-15 11:00:00'),
+        ('CUST-001', 'Keyboard', 1, 75.00, '2026-01-16 14:20:00'),
+        ('CUST-003', 'Monitor', 1, 300.00, '2026-01-17 09:00:00'),
+        ('CUST-002', 'Webcam', 1, 50.00, '2026-01-18 16:45:00'),
+        -- Duplicate entry to test deduplication
+        ('CUST-001', 'Laptop', 1, 1200.00, '2026-01-15 10:30:00');

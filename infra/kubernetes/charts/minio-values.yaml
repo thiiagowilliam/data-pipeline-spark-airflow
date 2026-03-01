@@ -1,0 +1,25 @@
+# infra/kubernetes/charts/minio-values.yaml
+
+# Default credentials for the MinIO root user (for local development ONLY)
+auth:
+  rootUser: "minio"
+  rootPassword: "minio123"
+
+# Persistence settings to ensure data is not lost when pods restart.
+# The Helm chart will automatically create a PersistentVolumeClaim.
+persistence:
+  enabled: true
+  size: 10Gi
+
+# Pre-create the buckets required by the data pipeline and Spark History Server
+buckets:
+  - name: bronze
+  - name: silver
+  - name: gold
+  - name: spark-logs
+
+# Expose MinIO within the cluster with a ClusterIP service.
+# We will use `kubectl port-forward` for external access as described in the README.
+service:
+  type: ClusterIP
+  port: 9000

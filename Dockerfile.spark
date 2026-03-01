@@ -1,0 +1,27 @@
+# Dockerfile.spark
+# This Dockerfile builds the image for our PySpark jobs.
+
+# Use the official PySpark 3.5.0 image as the base. It includes Python and Spark.
+FROM apache/spark-py:v3.5.0
+
+# Switch to the root user to install dependencies and set permissions
+USER root
+
+# Install the 'delta-spark' library, which is required for Delta Lake operations.
+# We also upgrade pip and setuptools for good measure.
+RUN pip install --no-cache-dir --upgrade pip setuptools && \
+    pip install --no-cache-dir delta-spark==3.1.0
+
+# Set the working directory for the application code.
+WORKDIR /opt/spark/work-dir
+
+# Copy the directory containing our Spark job scripts into the image.
+COPY ./spark_jobs ./spark_jobs
+
+# Grant ownership of the working directory to the default 'spark' user.
+# The base image creates a user 'spark' with uid 185.
+RUN chown -R 185:0 /opt/spark/work-dir && \
+    chmod -R 775 /opt/spark/work-dir
+
+# Switch back to the non-root 'spark' user for security.
+USER spark

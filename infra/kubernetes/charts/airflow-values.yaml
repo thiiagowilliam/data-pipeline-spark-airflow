@@ -1,0 +1,65 @@
+# infra/kubernetes/charts/airflow-values.yaml
+
+# Use the official Airflow image as a base, but we will point to our custom one
+images:
+  airflow:
+    repository: "localhost:5000/pyspark-basic-airflow"
+    tag: "latest"
+    pullPolicy: "IfNotPresent"
+
+# Set the executor to KubernetesExecutor
+executor: "KubernetesExecutor"
+
+# Use the built-in Postgres chart for the Airflow metadata database.
+# This is separate from our 'sales' data source Postgres.
+postgresql:
+  enabled: true
+  auth:
+    username: "airflow"
+    password: "airflow-password"
+    database: "airflow-metastore"
+
+# DAG configuration: We are baking DAGs into the image, so disable git-sync.
+dags:
+  persistence:
+    enabled: false
+  gitSync:
+    enabled: false
+
+# Log persistence
+logs:
+  persistence:
+    enabled: true
+    size: 5Gi
+
+# Create a default user for the web UI
+webserver:
+  defaultUser:
+    enabled: true
+    role: "Admin"
+    username: "airflow"
+    password: "airflow" # For local dev only
+    firstName: "Airflow"
+    lastName: "Admin"
+
+# Mount the Kubernetes secrets containing our data connection credentials
+# into all relevant Airflow components (scheduler, webserver, workers).
+extraSecrets:
+  postgres-credentials:
+    name: "postgres-credentials"
+  minio-credentials:
+    name: "minio-credentials"
+
+# Configuration for the pods that the KubernetesExecutor will launch
+podTemplate:
+  # The image for worker pods must be the same as the main Airflow image
+  image:
+    repository: "localhost:5000/pyspark-basic-airflow"
+    tag: "latest"
+    pullPolicy: "IfNotPresent"
+  # Mount secrets into worker pods as well
+  envFrom:
+    - secretRef:
+        name: "postgres-credentials"
+    - secretRef:
+        name: "minio-credentials"
