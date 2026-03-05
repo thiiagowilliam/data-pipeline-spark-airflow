@@ -1,125 +1,150 @@
-# Production-Grade Medallion Data Lakehouse on Kubernetes
+<!-- markdownlint-configure-file {
+  "MD013": {
+    "code_blocks": false,
+    "tables": false
+  },
+  "MD033": false,
+  "MD041": false
+} -->
 
-Pipeline de dados end-to-end com arquitetura Medallion (Bronze, Silver, Gold) rodando nativamente no Kubernetes com elasticidade real via Apache Spark Kubernetes Operator, PySpark, Delta Lake e Airflow KubernetesExecutor.
+<div align="center" markdown="1">
 
-[![PySpark 3.5.1](https://img.shields.io/badge/PySpark-3.5.1-yellow.svg)](https://spark.apache.org/)
-[![Airflow 2.10.2](https://img.shields.io/badge/Airflow-2.10.2-blue.svg)](https://airflow.apache.org/)
-[![Delta Lake 3.2.0](https://img.shields.io/badge/Delta%20Lake-3.2.0-green.svg)](https://delta.io/)
-[![Spark Operator](https://img.shields.io/badge/Spark%20Operator-latest-orange.svg)](https://github.com/kubeflow/spark-operator)
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-grey.svg?logo=kubernetes)](https://kubernetes.io/)
-[![k3d](https://img.shields.io/badge/k3d-latest-brightgreen.svg)](https://k3d.io/)
-[![Great Expectations](https://img.shields.io/badge/Great%20Expectations-latest-purple.svg)](https://greatexpectations.io/)
+# Helmfile
 
----
+[![Tests](https://github.com/helmfile/helmfile/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/helmfile/helmfile/actions/workflows/ci.yaml?query=branch%3Amain)
+[![Container Image Repository on GHCR](https://ghcr-badge.egpl.dev/helmfile/helmfile/latest_tag?trim=major&label=latest "Docker Repository on ghcr")](https://github.com/helmfile/helmfile/pkgs/container/helmfile)
+[![Go Report Card](https://goreportcard.com/badge/github.com/helmfile/helmfile)](https://goreportcard.com/report/github.com/helmfile/helmfile)
+[![Slack Community #helmfile](https://slack.sweetops.com/badge.svg)](https://slack.sweetops.com)
+[![Documentation](https://readthedocs.org/projects/helmfile/badge/?version=latest&style=flat)](https://helmfile.readthedocs.io/en/latest/)
+[![Gurubase](https://img.shields.io/badge/Gurubase-Ask%20Helmfile%20Guru-006BFF)](https://gurubase.io/g/helmfile)
+[![zread](https://img.shields.io/badge/Ask_Zread-_.svg?style=flat&color=00b0aa&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuOTYxNTYgMS42MDAxSDIuMjQxNTZDMS44ODgxIDEuNjAwMSAxLjYwMTU2IDEuODg2NjQgMS42MDE1NiAyLjI0MDFWNC45NjAxQzEuNjAxNTYgNS4zMTM1NiAxLjg4ODEgNS42MDAxIDIuMjQxNTYgNS42MDAxSDQuOTYxNTZDNS4zMTUwMiA1LjYwMDEgNS42MDE1NiA1LjMxMzU2IDUuNjAxNTYgNC45NjAxVjIuMjQwMUM1LjYwMTU2IDEuODg2NjQgNS4zMTUwMiAxLjYwMDEgNC45NjE1NiAxLjYwMDFaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00Ljk2MTU2IDEwLjM5OTlIMi4yNDE1NkMxLjg4ODEgMTAuMzk5OSAxLjYwMTU2IDEwLjY4NjQgMS42MDE1NiAxMS4wMzk5VjEzLjc1OTlDMS42MDE1NiAxNC4xMTM0IDEuODg4MSAxNC4zOTk5IDIuMjQxNTYgMTQuMzk5OUg0Ljk2MTU2QzUuMzE1MDIgMTQuMzk5OSA1LjYwMTU2IDE0LjExMzQgNS42MDE1NiAxMy43NTk5VjExLjAzOTlDNS42MDE1NiAxMC42ODY0IDUuMzE1MDIgMTAuMzk5OSA0Ljk2MTU2IDEwLjM5OTlaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik0xMy43NTg0IDEuNjAwMUgxMS4wMzg0QzEwLjY4NSAxLjYwMDEgMTAuMzk4NCAxLjg4NjY0IDEwLjM5ODQgMi4yNDAxVjQuOTYwMUMxMC4zOTg0IDUuMzEzNTYgMTAuNjg1IDUuNjAwMSAxMS4wMzg0IDUuNjAwMUgxMy43NTg0QzE0LjExMTkgNS42MDAxIDE0LjM5ODQgNS4zMTM1NiAxNC4zOTg0IDQuOTYwMVYyLjI0MDFDMTQuMzk4NCAxLjg4NjY0IDE0LjExMTkgMS42MDAxIDEzLjc1ODQgMS42MDAxWiIgZmlsbD0iI2ZmZiIvPgo8cGF0aCBkPSJNNCAxMkwxMiA0TDQgMTJaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K&logoColor=ffffff)](https://zread.ai/helmfile/helmfile)
 
-## Arquitetura: Medallion Lakehouse Elástico
+Deploy Kubernetes Helm Charts
+<br />
 
-A pipeline segue o padrão Medallion para refinar dados progressivamente, com orquestração via Airflow e processamento distribuído e elástico via Spark on Kubernetes.
+</div>
 
-```mermaid
-graph TD
-    subgraph "Fontes de Dados"
-        A[PostgreSQL Database]
-    end
+English | [简体中文](./README-zh_CN.md)
 
-    subgraph "Kubernetes Cluster (k3d)"
-        subgraph "Data Lake (MinIO)"
-            B[<font color=brown>Bronze Layer</font> - Raw Delta]
-            C[<font color=silver>Silver Layer</font> - Cleaned/Validated Delta]
-            D[<font color=gold>Gold Layer</font> - Aggregated Delta]
-        end
+## About
 
-        subgraph "Orquestração"
-             E[Airflow (KubernetesExecutor)] -- Triggers CRD --> F{Spark Operator};
-        end
-        
-        subgraph "Processamento Elástico (On-Demand)"
-            F -- Creates --> G[Spark Driver Pod];
-            G -- "dynamicAllocation" --> H[Executor Pod 1..N];
-        end
-    end
+Helmfile is a declarative spec for deploying helm charts. It lets you...
 
-    A -- "1. Ingest (JDBC)" --> G;
-    G -- "Write Raw" --> B;
-    B -- "Read Raw" --> G;
-    G -- "Clean, Deduplicate, Validate & MERGE" --> C;
-    C -- "Read Cleaned" --> G;
-    G -- "Aggregate & Write" --> D;
+* Keep a directory of chart value files and maintain changes in version control.
+* Apply CI/CD to configuration changes.
+* Periodically sync to avoid skew in environments.
 
-    style B fill:#CD7F32,stroke:#333,stroke-width:2px;
-    style C fill:#C0C0C0,stroke:#333,stroke-width:2px;
-    style D fill:#FFD700,stroke:#333,stroke-width:2px;
+To avoid upgrades for each iteration of `helm`, the `helmfile` executable delegates to `helm` - as a result, the following must be installed
+- [helm](https://helm.sh/docs/intro/install/)
+- [helm-diff](https://github.com/databus23/helm-diff)
+
+## Highlights
+
+**Declarative**: Write, version-control, apply the desired state file for visibility and reproducibility.
+
+**Modules**: Modularize common patterns of your infrastructure, distribute it via Git, S3, etc. to be reused across the entire company (See [#648](https://github.com/roboll/helmfile/pull/648))
+
+**Versatility**: Manage your cluster consisting of charts, [kustomizations](https://github.com/kubernetes-sigs/kustomize), and directories of Kubernetes resources, turning everything to Helm releases (See [#673](https://github.com/roboll/helmfile/pull/673))
+
+**Patch**: JSON/Strategic-Merge Patch Kubernetes resources before `helm-install`ing, without forking upstream charts (See [#673](https://github.com/roboll/helmfile/pull/673))
+
+## Status
+
+May 2025 Update
+
+* Helmfile v1.0 and v1.1 has been released. We recommend upgrading directly to v1.1 if you are still using v0.x.
+* If you haven't already upgraded, please go over this v1 proposal [here](docs/proposals/towards-1.0.md) to see a small list of breaking changes.
+
+## Installation
+
+**1: Binary Installation**
+
+download one of [releases](https://github.com/helmfile/helmfile/releases)
+
+**2: Package Manager**
+
+* Archlinux: install via `pacman -S helmfile`
+* openSUSE: install via `zypper in helmfile` assuming you are on Tumbleweed; if you are on Leap you must add the [kubic](https://download.opensuse.org/repositories/devel:/kubic/) repo for your distribution version once before that command, e.g. `zypper ar https://download.opensuse.org/repositories/devel:/kubic/openSUSE_Leap_\$releasever kubic`
+* Windows (using [scoop](https://scoop.sh/)): `scoop install helmfile`
+* macOS (using [homebrew](https://brew.sh/)): `brew install helmfile`
+* Linux/macOS/Windows (using [mise](https://mise.jdx.dev)): `mise use -g helmfile@latest`
+
+**3: Container**
+
+For more details, see [run as a container](https://helmfile.readthedocs.io/en/latest/#running-as-a-container)
+
+> Make sure to run `helmfile init` once after installation. Helmfile uses the [helm-diff](https://github.com/databus23/helm-diff) plugin.
+
+## Getting Started
+
+Let's start with a simple `helmfile` and gradually improve it to fit your use-case!
+
+Suppose the `helmfile.yaml` representing the desired state of your helm releases looks like:
+
+```yaml
+repositories:
+- name: prometheus-community
+  url: https://prometheus-community.github.io/helm-charts
+
+releases:
+- name: prom-norbac-ubuntu
+  namespace: prometheus
+  chart: prometheus-community/prometheus
+  set:
+  - name: rbac.create
+    value: false
 ```
 
----
+Sync your Kubernetes cluster state to the desired one by running:
 
-## Por que Spark Kubernetes Operator?
+```console
+helmfile apply
+```
 
-Em setups tradicionais (Spark Standalone), os workers são **fixos**: você aloca recursos e paga por eles mesmo quando ociosos. O **Spark Kubernetes Operator** muda o jogo:
+Congratulations! You now have your first Prometheus deployment running inside
+ your cluster.
 
-1.  **Zero Cluster Persistente:** Jobs são submetidos como CRDs (`SparkApplication`). O operator cria e destrói pods de forma on-demand.
-2.  **`dynamicAllocation` Real:** Configurado com `minExecutors` e `maxExecutors`, o Spark adiciona/remove executors *durante a execução* baseado na carga (shuffles, etc.), otimizando o uso de recursos.
-3.  **Isolamento e Custo Zero:** Cada job roda em seu próprio conjunto de pods, liberando 100% dos recursos ao terminar.
+Iterate on the `helmfile.yaml` by referencing:
 
-> *[Placeholder para GIF: `kubectl get pods -n spark-jobs -w` mostrando pods de executors escalando de 1 para 8 e depois terminando.]*
+* [Configuration](https://helmfile.readthedocs.io/en/latest/#configuration)
+* [CLI reference](https://helmfile.readthedocs.io/en/latest/#cli-reference)
+* [Helmfile Best Practices Guide](https://helmfile.readthedocs.io/en/latest/writing-helmfile/)
 
----
+## More complex examples
 
-## Como Rodar em 4 Minutos
+See: [multi-env-helmfile](https://github.com/helmfile/multi-env-helmfile)
 
-**Pré-requisitos:** Docker, `k3d`, `helm`, `kubectl`.
+## Docs
 
-1.  **Clone o Repositório**
-    ```bash
-    git clone https://github.com/thiiagowilliam/data-pipeline-spark-airflow.git
-    cd data-pipeline-spark-airflow
-    ```
+Please read [complete documentation](https://helmfile.readthedocs.io/)
 
-2.  **Crie o Cluster Kubernetes Local**
-    ```bash
-    k3d cluster create --config infra/kubernetes/k3d-datalake.yaml
-    ```
+## Contributing
 
-3.  **Construa e Importe as Imagens Customizadas**
-    ```bash
-    # Build
-    docker build -t pyspark-lakehouse-spark:latest -f infra/docker/Dockerfile.spark .
-    docker build -t pyspark-lakehouse-airflow:latest -f infra/docker/Dockerfile.airflow .
-    
-    # Import para o cluster k3d (mais rápido que um registry local)
-    k3d image import pyspark-lakehouse-spark:latest pyspark-lakehouse-airflow:latest --cluster datalake
-    ```
+Welcome to contribute together to make helmfile better: [contributing doc](https://helmfile.readthedocs.io/en/latest/contributing/)
 
-4.  **Deploy da Infraestrutura via Helm**
-    ```bash
-    bash infra/kubernetes/setup-k8s.sh
-    ```
-    Aguarde os pods nos namespaces `airflow`, `minio`, e `postgres` estarem no estado `Running`. Use `kubectl get pods -A -w`.
+## Attribution
 
-5.  **Acesse, Ative e Execute a Pipeline**
-    -   **Airflow UI:** `http://localhost:8080` (user: `airflow`, pass: `airflow`)
-    -   **MinIO Console:** `http://localhost:9001` (user: `minio`, pass: `minio123`)
+We use:
 
-    No Airflow UI, ative a DAG `medallion_sales_pipeline` e dispare uma execução manual.
+* [semtag](https://github.com/pnikosis/semtag) for automated semver tagging.
+I greatly appreciate the author(pnikosis)'s effort on creating it and their
+kindness to share it!
 
-> *[Placeholder para GIF: Navegação no Airflow UI, ativando e executando a DAG com sucesso.]*
+## Users
 
-> *[Placeholder para GIF: Navegação no MinIO Console mostrando as pastas `bronze`, `silver` e `gold` sendo populadas com arquivos Parquet/Delta.]*
+Helmfile has been used by many users in production:
 
----
+* [gitlab.com](https://gitlab.com)
+* [reddit.com](https://reddit.com)
+* [Jenkins](https://jenkins.io)
+* ...
 
-## Decisões Técnicas e Lições Aprendidas
+For more users, please see: [Users](https://helmfile.readthedocs.io/en/latest/users/)
 
--   **Idempotência com Delta `MERGE`:** A operação de `MERGE` (upsert) na camada Silver é crucial para garantir que re-execuções da pipeline não gerem duplicatas.
--   **KubernetesExecutor:** Garante que cada task do Airflow rode em seu próprio pod, proporcionando isolamento total e permitindo que a submissão dos jobs Spark seja nativa do K8s.
--   **k3d com `image import`:** Para desenvolvimento local, `k3d image import` é significativamente mais simples e rápido do que configurar e usar um registry local.
+## License
 
-## Roadmap Futuro
+[MIT](https://github.com/helmfile/helmfile/blob/main/LICENSE)
 
--   [ ] Implementar CI/CD com GitHub Actions (lint, test, build).
--   [ ] Aprofundar validações com Great Expectations, gerando Data Docs.
--   [ ] Adicionar uma pipeline de streaming com Kafka e Spark Structured Streaming.
--   [ ] Integrar com Trino/Presto para consultas SQL federadas no Data Lakehouse.
+## Star History
 
----
-_Este projeto foi lapidado seguindo um prompt detalhado com o Code Agent do Google Gemini._
+[![Star History Chart](https://api.star-history.com/svg?repos=helmfile/helmfile&type=Date)](https://star-history.com/#helmfile/helmfile&Date)

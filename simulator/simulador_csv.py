@@ -11,8 +11,8 @@ import logging
 
 # --- CONFIGURACOES ---
 MINIO_URL = "http://localhost:9000"
-ACCESS_KEY = "admin"
-SECRET_KEY = "admin123"
+ACCESS_KEY = "minioadmin"
+SECRET_KEY = "minioadmin"
 BUCKET_NAME = "datalake"
 
 # --- CONFIG LOGGING ---

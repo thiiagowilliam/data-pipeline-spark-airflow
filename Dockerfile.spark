@@ -1,27 +1,25 @@
-# Dockerfile.spark
-# This Dockerfile builds the image for our PySpark jobs.
-
-# Use the official PySpark 3.5.0 image as the base. It includes Python and Spark.
 FROM apache/spark-py:v3.5.0
 
-# Switch to the root user to install dependencies and set permissions
 USER root
 
-# Install the 'delta-spark' library, which is required for Delta Lake operations.
-# We also upgrade pip and setuptools for good measure.
 RUN pip install --no-cache-dir --upgrade pip setuptools && \
     pip install --no-cache-dir delta-spark==3.1.0
 
-# Set the working directory for the application code.
-WORKDIR /opt/spark/work-dir
+ENV HADOOP_AWS_VERSION=3.3.4
+ENV AWS_SDK_VERSION=1.12.262
 
-# Copy the directory containing our Spark job scripts into the image.
-COPY ./spark_jobs ./spark_jobs
+ADD https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/${HADOOP_AWS_VERSION}/hadoop-aws-${HADOOP_AWS_VERSION}.jar /opt/spark/jars/
+ADD https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS_SDK_VERSION}/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar /opt/spark/jars/
 
-# Grant ownership of the working directory to the default 'spark' user.
-# The base image creates a user 'spark' with uid 185.
+RUN chmod 644 /opt/spark/jars/*.jar
+
+RUN mkdir -p /opt/spark/conf
+
+RUN echo "spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem" >> /opt/spark/conf/spark-defaults.conf && \
+    echo "spark.hadoop.fs.s3a.path.style.access=true" >> /opt/spark/conf/spark-defaults.conf && \
+    echo "spark.hadoop.fs.s3a.connection.ssl.enabled=false" >> /opt/spark/conf/spark-defaults.conf
+
 RUN chown -R 185:0 /opt/spark/work-dir && \
     chmod -R 775 /opt/spark/work-dir
 
-# Switch back to the non-root 'spark' user for security.
 USER spark
