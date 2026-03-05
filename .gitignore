@@ -55,4 +55,15 @@ spark-warehouse/
 .pytest_cache/
 
 
-jars/*
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl   # opcional: alguns commitam, mas se não precisa de lock fixo, ignore
+terraform.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
