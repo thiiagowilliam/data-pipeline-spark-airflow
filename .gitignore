@@ -53,3 +53,6 @@ notebooks/.ipynb_checkpoints
 metastore_db/
 spark-warehouse/
 .pytest_cache/
+
+
+jars/*
