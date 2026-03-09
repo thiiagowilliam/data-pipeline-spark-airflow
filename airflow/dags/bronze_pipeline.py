@@ -41,7 +41,6 @@ with DAG(
             task_id='list_csv_files',
             bucket=Minio.BUCKET_NAME,
             prefix='raw/',
-            delimiter='/',
             aws_conn_id=Minio.CONN_ID,
         )
 
@@ -66,10 +65,10 @@ with DAG(
     with TaskGroup(group_id="process_files") as process:
         process_file = SparkSubmitOperator(
             task_id='run_spark_job',
-            application='/opt/airflow/dags/scripts/bronze_ingest.py',
+            application='/opt/airflow/dags/scripts/bronze_client_ingest.py',
             name='arrow-spark',
             conn_id='spark_default',
-            packages='org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.540',
+            packages='org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.540,org.postgresql:postgresql:42.7.2',
             py_files='/opt/airflow/dags/scripts/settings.py',
             application_args=new_files
         )

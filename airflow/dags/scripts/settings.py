@@ -9,11 +9,11 @@ class Minio:
     CONN_ID = os.getenv("MINIO_CONN_ID", "aws_default")
 
 class Database:
-    HOST = os.getenv("HOST", "postgres")
-    NAME = os.getenv("NAME", "origem_db")
-    USER = os.getenv("USER", "admin")
-    PASSWORD = os.getenv("PASSWORD", "admin")
-    PORT = os.getenv("PORT", 5432)
+    HOST = os.getenv("DB_HOST", "postgres")
+    NAME = os.getenv("DB_NAME", "airflow")
+    USER = os.getenv("DB_USER", "airflow")
+    PASSWORD = os.getenv("DB_PASSWORD", "airflow")
+    PORT = os.getenv("DB_PORT", 5432)
 
 class SparkConfig:
     HOST = os.getenv("SPARK_HOST", "spark-master")
