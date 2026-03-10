@@ -43,6 +43,7 @@ Thumbs.db
 # Project-specific
 .local_volumes/
 minio_data/
+postgres_data/
 minio_root/
 data/
 .airflow/

@@ -2,6 +2,9 @@ FROM apache/spark-py:v3.5.0
 
 USER root
 
+COPY requirements.txt /
+RUN pip install --no-cache-dir -r /requirements.txt
+
 RUN pip install --no-cache-dir --upgrade pip setuptools && \
     pip install --no-cache-dir delta-spark==3.1.0
 
@@ -17,9 +20,14 @@ RUN mkdir -p /opt/spark/conf
 
 RUN echo "spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem" >> /opt/spark/conf/spark-defaults.conf && \
     echo "spark.hadoop.fs.s3a.path.style.access=true" >> /opt/spark/conf/spark-defaults.conf && \
-    echo "spark.hadoop.fs.s3a.connection.ssl.enabled=false" >> /opt/spark/conf/spark-defaults.conf
+    echo "spark.hadoop.fs.s3a.connection.ssl.enabled=false" >> /opt/spark/conf/spark-defaults.conf && \
+    echo "spark.driver.memory=1g" >> /opt/spark/conf/spark-defaults.conf && \
+    echo "spark.executor.memory=1g" >> /opt/spark/conf/spark-defaults.conf
 
 RUN chown -R 185:0 /opt/spark/work-dir && \
     chmod -R 775 /opt/spark/work-dir
 
 USER spark
+
+RUN pip install --no-cache-dir --upgrade pip setuptools && \
+    pip install --no-cache-dir -r /requirements.txt delta-spark==3.1.0
