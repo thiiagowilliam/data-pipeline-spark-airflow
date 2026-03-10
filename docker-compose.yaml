@@ -88,14 +88,15 @@ services:
     restart: unless-stopped
     environment:
       - SPARK_MODE=master
-      - SPARK_HISTORY_OPTS=-Dspark.history.fs.logDirectory=/opt/spark/work-dir/spark-logs
+      - SPARK_HISTORY_OPTS=-Dspark.history.fs.logDirectory=/opt/spark/spark-events
       - SPARK_EVENTLOG_ENABLED=true
-      - SPARK_EVENTLOG_DIR=/opt/spark/work-dir/spark-logs
+      - SPARK_EVENTLOG_DIR=/opt/spark/spark-events
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
     volumes:
       - ./airflow/dags/scripts:/opt/spark/work-dir
       - ./jars/aws-java-sdk-bundle-1.12.540.jar:/opt/spark/jars/aws-java-sdk-bundle-1.12.540.jar
       - ./jars/hadoop-aws-3.3.4.jar:/opt/spark/jars/hadoop-aws-3.3.4.jar
+      - ./spark-events:/opt/spark/spark-events
     ports:
       - "7077:7077"
       - "8081:8080"
@@ -117,14 +118,20 @@ services:
       - ./airflow/dags/scripts:/opt/spark/work-dir
       - ./jars/aws-java-sdk-bundle-1.12.540.jar:/opt/spark/jars/aws-java-sdk-bundle-1.12.540.jar
       - ./jars/hadoop-aws-3.3.4.jar:/opt/spark/jars/hadoop-aws-3.3.4.jar
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./contracts:/opt/airflow/dags/contracts 
+      - ./airflow/dags/scripts:/opt/spark/work-dir
+      - ./spark-events:/opt/spark/spark-events
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
       - SPARK_WORKER_MEMORY=2g
       - SPARK_WORKER_CORES=2
-      - SPARK_HISTORY_OPTS=-Dspark.history.fs.logDirectory=/opt/spark/work-dir/spark-logs
+      - SPARK_HISTORY_OPTS=-Dspark.history.fs.logDirectory=/opt/spark/spark-events
       - SPARK_EVENTLOG_ENABLED=true
-      - SPARK_EVENTLOG_DIR=/opt/spark/work-dir/spark-logs
+      - SPARK_EVENTLOG_DIR=/opt/spark/spark-events
     networks:
       - airflow-net
     
@@ -133,10 +140,10 @@ services:
     container_name: spark-history-server
     restart: unless-stopped
     environment:
-      - SPARK_HISTORY_OPTS=-Dspark.history.fs.logDirectory=/opt/spark/spark-logs
+      - SPARK_HISTORY_OPTS=-Dspark.history.fs.logDirectory=/opt/spark/spark-events
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.history.HistoryServer
     volumes:
-      - ./airflow/dags/scripts/spark-logs:/opt/spark/spark-logs
+      - ./spark-events:/opt/spark/spark-events
     ports:
       - "18080:18080"
     networks:

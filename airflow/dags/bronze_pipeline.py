@@ -101,6 +101,8 @@ with DAG(
             conf={
                 "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
                 "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+                "spark.eventLog.enabled": "true",
+                "spark.eventLog.dir": "file:///opt/spark/spark-events"
             },
             application_args=new_files_task,
         )
