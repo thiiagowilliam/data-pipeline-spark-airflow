@@ -8,24 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Created `CHANGELOG.md` to track changes.
-- Added comprehensive `README.md` with project overview, architecture, and setup instructions.
-- Created `docs` directory with detailed documentation for architecture, data model, and troubleshooting.
-- Added `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`.
-- Added `requirements.txt` to manage Python dependencies.
-- Added `.pre-commit-config.yaml` for code quality checks.
-- Added unit tests for the data simulator.
-- Integrated Great Expectations for data validation.
+- **Data Validation Layer**: Professional `DataValidator` class with schema, type, null, and business rule validation
+- **Validation Spark Job** (`validate_data.py`): Standalone job for pre-ingest data quality checks
+- **Validation Reports**: Structured reports with conformity rates and detailed error breakdowns
+- **Centralized Spark Config** (`spark_config.py`): Shared SparkSession factory for all Spark jobs
+- **Makefile**: DevOps automation with `make up`, `make test`, `make lint`, `make simulate`
+- **DAG Parse Verification**: CI/CD step to validate all Python files parse correctly
+- Created `CHANGELOG.md` to track changes
+- Added comprehensive `README.md` with tech stack badges, architecture diagram, project structure
+- Created `docs/` directory with architecture, data model, and troubleshooting docs
+- Added `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`
+- Added `.pre-commit-config.yaml` for code quality checks
+- Added unit tests for the data simulator
+- Integrated Great Expectations for data validation
 
 ### Changed
-- Refactored `simulator/simulador_csv.py` to `simulator/data_simulator.py` to use classes and environment variables.
-- Refactored `bronze_pipeline.py` DAG to use Airflow connections and variables.
-- Refactored `bronze_client_ingest.py` Spark job to be more modular and use environment variables.
-- Switched from Parquet to Delta Lake for the bronze layer.
-- Updated `.gitignore` with more patterns.
-- Updated `Dockerfile.airflow` and `Dockerfile.spark` to install dependencies from `requirements.txt`.
-- Updated CI workflow to use `pre-commit` and `pytest`.
+- **Refactored DAG**: Extracted Spark config constants (DRY), removed unused imports, added `doc_md` to all tasks
+- **Refactored Spark Jobs**: Both `bronze_ingest.py` and `validate_data.py` now use `spark_config.py`
+- **Improved CI/CD**: Split into 3 jobs (lint, test, verify-dag), added pytest-cov, updated GitHub Actions
+- **Updated Documentation**: Fixed stale references, synchronized data model with actual schemas
+- Refactored `simulator/data_simulator.py` to use classes and environment variables
+- Switched from Parquet to Delta Lake for the bronze layer
+- Updated `Dockerfile.airflow` and `Dockerfile.spark` to install dependencies from `requirements.txt`
 
 ### Removed
-- Removed `helmfile` related content from `README.md`.
-- Removed `airflow/dags/scripts/connection.py` and `airflow/dags/scripts/settings.py`.
+- Removed orphan `Dockerfile` (not referenced by docker-compose)
+- Removed `airflow/dags/scripts/connection.py` and `airflow/dags/scripts/settings.py`

@@ -1,67 +1,95 @@
 # Troubleshooting
 
-This guide provides solutions to common problems you might encounter while running the project.
+Solutions for common issues you might encounter.
 
 ## Docker Compose
 
 ### Services fail to start
 
-*   **Symptom**: `docker-compose up` fails with errors, or some containers exit unexpectedly.
-*   **Solution**:
-    1.  Ensure Docker and Docker Compose are installed correctly and that the Docker daemon is running.
-    2.  Check for port conflicts. If another service on your machine is using a port required by the project (e.g., 8085, 9001, 5433, 7077), you will need to stop that service or change the port mapping in the `docker-compose.yaml` file.
-    3.  Run `docker-compose down -v` to remove all containers, networks, and volumes, and then try `docker-compose up --build` again.
+- **Symptom**: `docker compose up` fails or containers exit unexpectedly.
+- **Solution**:
+  1. Ensure Docker and Docker Compose are installed and the daemon is running.
+  2. Check for port conflicts (8085, 9001, 5433, 7077, 18080). Stop conflicting services or change ports in `docker-compose.yaml`.
+  3. Run a clean restart:
+     ```bash
+     make clean   # or: docker compose down -v
+     make up      # or: docker compose up --build -d
+     ```
 
 ### Permission errors
 
-*   **Symptom**: You get "permission denied" errors when running `docker-compose` commands.
-*   **Solution**:
-    1.  Add your user to the `docker` group to avoid using `sudo`:
-        ```bash
-        sudo usermod -aG docker $USER
-        ```
-        You will need to log out and log back in for this change to take effect.
-    2.  Ensure that the files in the project directory have the correct permissions.
+- **Symptom**: "permission denied" errors.
+- **Solution**:
+  ```bash
+  sudo usermod -aG docker $USER
+  # Log out and back in
+  ```
 
 ## Airflow
 
 ### DAGs not appearing in the UI
 
-*   **Symptom**: The `s3_spark_processing_pipeline` DAG is not visible in the Airflow UI.
-*   **Solution**:
-    1.  Wait a few minutes for the Airflow scheduler to parse the DAG files.
-    2.  Check the logs of the `airflow-scheduler` container for any parsing errors:
-        ```bash
-        docker-compose logs airflow-scheduler
-        ```
-    3.  Ensure the DAG file (`bronze_pipeline.py`) is in the correct directory (`airflow/dags`).
+- **Symptom**: The `bronze_data_pipeline` DAG is not visible.
+- **Solution**:
+  1. Wait a few minutes for the scheduler to parse DAG files.
+  2. Check scheduler logs:
+     ```bash
+     make logs s=airflow-scheduler
+     # or: docker compose logs airflow-scheduler
+     ```
+  3. Verify `bronze_pipeline.py` is in `airflow/dags/`.
+  4. Check for Python import errors — the DAG file must parse without errors.
 
-### Task fails with `AirflowException`
+### Validation task fails
 
-*   **Symptom**: The `run_spark_job` task fails with an `AirflowException` related to `spark-submit`.
-*   **Solution**:
-    1.  Check the logs of the `spark-master` and `spark-worker` containers for errors:
-        ```bash
-        docker-compose logs spark-master
-        docker-compose logs spark-worker
-        ```
-    2.  Ensure that the path to the Spark application in the `SparkSubmitOperator` is correct and that the file exists.
-    3.  Verify that the Spark cluster is running correctly by accessing the Spark Master UI at `http://localhost:8081`.
+- **Symptom**: `validate_data` task fails with `DataValidationError`.
+- **Solution**:
+  1. Check the Spark job logs for the detailed validation report (schema, types, nulls, business rules).
+  2. Verify that the CSV data matches the contracts in `contracts/`.
+  3. Common issues:
+     - Missing columns in the CSV
+     - Wrong data types (e.g., string where integer expected)
+     - Invalid email format in `clientes`
+     - `valor_total <= 0` or `quantidade < 1` in `vendas`
+
+### Spark job fails with `AirflowException`
+
+- **Symptom**: `ingest_to_bronze` task fails.
+- **Solution**:
+  1. Check Spark cluster logs:
+     ```bash
+     make logs s=spark-master
+     make logs s=spark-worker
+     ```
+  2. Verify application path exists: `/opt/airflow/dags/scripts/spark_jobs/bronze_ingest.py`
+  3. Check Spark Master UI at http://localhost:8081
 
 ## Spark
 
 ### `java.lang.ClassNotFoundException`
 
-*   **Symptom**: The Spark job fails with a `ClassNotFoundException`, often related to S3AFileSystem or PostgreSQL driver.
-*   **Solution**:
-    1.  Ensure that the required packages (`hadoop-aws`, `aws-java-sdk-bundle`, `postgresql`) are correctly specified in the `packages` argument of the `SparkSubmitOperator`.
-    2.  Check the internet connection of the Spark containers, as they need to download these packages.
+- **Symptom**: Missing S3AFileSystem or PostgreSQL driver.
+- **Solution**: Verify the `packages` parameter in the DAG's `SparkSubmitOperator` includes:
+  - `org.apache.hadoop:hadoop-aws:3.3.4`
+  - `com.amazonaws:aws-java-sdk-bundle:1.12.540`
+  - `org.postgresql:postgresql:42.7.2` (ingest job only)
+
+### SparkSession config issues
+
+- **Symptom**: Cannot connect to MinIO from Spark.
+- **Solution**: Check `spark_config.py` — all S3A settings are centralized there. Verify env vars:
+  - `AWS_ACCESS_KEY_ID`
+  - `AWS_SECRET_ACCESS_KEY`
+  - `MINIO_ENDPOINT`
 
 ## MinIO
 
 ### Cannot connect to MinIO
 
-*   **Symptom**: The data simulator or the Spark job fails to connect to MinIO.
-*   **Solution**:
-    1.  Verify that the MinIO container is running and accessible at `http://localhost:9001`.
-    2.  Check that the MinIO endpoint, access key, and secret key are correctly configured in the `settings.py` file and that they match the values in `docker-compose.yaml`.
+- **Symptom**: Simulator or Spark job fails to connect.
+- **Solution**:
+  1. Check MinIO is running: http://localhost:9001
+  2. Verify credentials match `docker-compose.yaml`:
+     - User: `minioadmin`
+     - Password: `minioadmin`
+  3. From inside Docker, use endpoint `http://minio:9000` (not `localhost`)

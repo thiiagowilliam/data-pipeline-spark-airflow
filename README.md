@@ -1,97 +1,147 @@
-# Data Pipeline with Spark and Airflow
+# Data Pipeline — Spark + Airflow + Delta Lake
 
 [![CI](https://github.com/thiiagowilliam/data-pipeline-spark-airflow/actions/workflows/ci-cd.yaml/badge.svg)](https://github.com/thiiagowilliam/data-pipeline-spark-airflow/actions/workflows/ci-cd.yaml)
-[![License: MIT](httpss://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code Coverage](https://img.shields.io/badge/coverage-80%25-brightgreen)](https://example.com/coverage)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+[![Apache Spark](https://img.shields.io/badge/Spark-3.5.1-E25A1C.svg?logo=apache-spark&logoColor=white)](https://spark.apache.org/)
+[![Apache Airflow](https://img.shields.io/badge/Airflow-2.11-017CEE.svg?logo=apache-airflow&logoColor=white)](https://airflow.apache.org/)
+[![Delta Lake](https://img.shields.io/badge/Delta_Lake-3.2-00ADD8.svg)](https://delta.io/)
 
-An ETL pipeline for processing simulated data using Apache Spark and Apache Airflow, with MinIO as a data lake and PostgreSQL for metadata and results.
+Pipeline ETL completo para processamento de dados simulados, com validação de qualidade via contratos de dados, ingestão em Delta Lake e carga em PostgreSQL — orquestrado por Apache Airflow.
 
-## Overview
+## Tech Stack
 
-This project demonstrates a complete ETL (Extract, Transform, Load) data pipeline. It includes:
-
-*   **Data Simulation**: A Python script to generate fake customer and sales data and upload it to a MinIO bucket.
-*   **Orchestration**: An Apache Airflow DAG that triggers the Spark job when new data is available.
-*   **Processing**: An Apache Spark job that reads the raw data from MinIO, transforms it, and writes it back to the data lake in Parquet format (Bronze layer).
-*   **Storage**: MinIO is used as a data lake for raw and processed data. PostgreSQL stores Airflow's metadata and the final transformed data.
+| Componente | Tecnologia | Função |
+|-----------|-----------|--------|
+| **Orquestração** | Apache Airflow 2.11 + CeleryExecutor | Scheduling, DAGs, monitoramento |
+| **Processamento** | Apache Spark 3.5.1 (PySpark) | Transformação distribuída |
+| **Storage Format** | Delta Lake 3.2 | ACID transactions, time travel |
+| **Data Lake** | MinIO (S3-compatible) | Object storage para raw e bronze |
+| **Data Warehouse** | PostgreSQL 16 | Armazenamento relacional |
+| **Data Quality** | Great Expectations + Data Contracts | Validação de schema e regras de negócio |
+| **Message Broker** | Redis 7 | Celery task queue |
+| **CI/CD** | GitHub Actions | Lint, testes, verificação de DAG |
+| **Containerização** | Docker Compose | Ambiente completo em containers |
 
 ## Architecture
 
-The following diagram illustrates the architecture of the pipeline:
-
 ```mermaid
 graph TD
-    A[Data Simulator] -->|Uploads CSV files| B(MinIO Raw Bucket)
-    B -->|Triggers| C{Airflow}
-    C -->|Submits job| D[Spark Cluster]
-    D -->|Reads from| B
-    D -->|Writes to| E(MinIO Bronze Bucket - Parquet)
-    E -->|Data loaded into| F(PostgreSQL)
+    A["🎲 Data Simulator<br/><i>Faker + Pandas</i>"] -->|CSV upload| B["📦 MinIO<br/><i>raw/ bucket</i>"]
+    B -->|S3KeySensor| C{"🔄 Airflow<br/><i>Bronze Pipeline DAG</i>"}
+    C -->|"1. Validate"| D["✅ Data Validation<br/><i>Contracts + Business Rules</i>"]
+    D -->|"2. Ingest"| E["⚡ Spark Cluster<br/><i>Master + Worker</i>"]
+    E -->|Delta write| F["📦 MinIO<br/><i>bronze/ bucket</i>"]
+    E -->|JDBC load| G["🐘 PostgreSQL<br/><i>Staging tables</i>"]
+
+    style A fill:#f9f,stroke:#333
+    style D fill:#bfb,stroke:#333
+    style E fill:#ffa,stroke:#333
 ```
 
-## Setup Instructions
+## Project Structure
+
+```
+├── airflow/
+│   └── dags/
+│       ├── bronze_pipeline.py          # DAG principal — orquestração
+│       └── scripts/spark_jobs/
+│           ├── spark_config.py         # Configuração centralizada Spark
+│           ├── validate.py             # DataValidator (schema, tipos, regras)
+│           ├── validate_data.py        # Spark job — validação standalone
+│           └── bronze_ingest.py        # Spark job — ingestão Delta + Postgres
+├── contracts/                          # Contratos de dados (JSON schemas)
+│   ├── clientes.json
+│   ├── vendas.json
+│   └── sales_contract.json
+├── great_expectations/                 # Suites de validação GE
+│   └── expectations/
+│       ├── clientes_suite.json
+│       └── vendas_suite.json
+├── simulator/
+│   └── data_simulator.py              # Gerador de dados simulados
+├── database/
+│   └── tables.sql                      # DDL das tabelas PostgreSQL
+├── tests/
+│   └── test_data_simulator.py          # Testes unitários
+├── docs/                               # Documentação detalhada
+├── docker-compose.yaml                 # Stack completa (9 services)
+├── Dockerfile.airflow                  # Imagem Airflow customizada
+├── Dockerfile.spark                    # Imagem Spark customizada
+├── Makefile                            # Automação de comandos
+└── .github/workflows/ci-cd.yaml       # Pipeline CI/CD
+```
+
+## Key Features
+
+- **📋 Data Contracts** — Schemas JSON que definem a estrutura esperada dos dados para cada dataset
+- **✅ Data Validation Layer** — Validação automatizada de schema, tipos, nulos e regras de negócio antes da ingestão
+- **📊 Validation Reports** — Relatórios estruturados com métricas de conformidade por arquivo
+- **🔄 Idempotent Processing** — Controle de metadata para evitar reprocessamento de arquivos
+- **🏗️ Delta Lake** — ACID transactions e schema enforcement na camada bronze
+- **📈 Spark History Server** — Monitoramento de jobs Spark com histórico completo
+- **🐳 Full Docker Stack** — 9 serviços containerizados prontos para uso local
+
+## Quick Start
 
 ### Prerequisites
 
-*   Docker
-*   Docker Compose
+- Docker & Docker Compose
+- Make (opcional, para atalhos)
 
-### Installation
+### Setup
 
-1.  Clone the repository:
-    ```bash
-    git clone https://github.com/thiiagowilliam/data-pipeline-spark-airflow.git
-    cd data-pipeline-spark-airflow
-    ```
+```bash
+# Clone o repositório
+git clone https://github.com/thiiagowilliam/data-pipeline-spark-airflow.git
+cd data-pipeline-spark-airflow
 
-2.  Build and start the services using Docker Compose:
-    ```bash
-    docker-compose up --build -d
-    ```
+# Suba a stack completa
+make up
+# ou: docker compose up --build -d
 
-This will start the following services:
+# Gere dados simulados
+make simulate
+# ou: cd simulator && python data_simulator.py
+```
 
-*   Airflow Webserver (available at `http://localhost:8085`)
-*   Airflow Scheduler, Worker, and Init
-*   Spark Master and Worker
-*   PostgreSQL
-*   MinIO (available at `http://localhost:9001` with user/password `minioadmin/minioadmin`)
-*   Redis
+### Serviços Disponíveis
 
-## How to Run
+| Serviço | URL | Credenciais |
+|---------|-----|-------------|
+| Airflow UI | http://localhost:8085 | `admin` / `admin` |
+| MinIO Console | http://localhost:9001 | `minioadmin` / `minioadmin` |
+| Spark Master UI | http://localhost:8081 | — |
+| Spark History | http://localhost:18080 | — |
+| PostgreSQL | `localhost:5433` | `airflow` / `airflow` |
 
-1.  **Generate and upload data**:
+### Pipeline Execution
 
-    Run the data simulator to generate and upload data to MinIO:
-
-    ```bash
-    python3 simulator/simulador_csv.py
-    ```
-
-2.  **Trigger the Airflow DAG**:
-
-    *   Open the Airflow UI at `http://localhost:8085` (user/password `admin/admin`).
-    *   Enable and trigger the `s3_spark_processing_pipeline` DAG.
+1. Execute o **Data Simulator** para gerar CSVs e enviar ao MinIO
+2. Ative o DAG `bronze_data_pipeline` no Airflow UI
+3. O pipeline executa automaticamente: **detect → filter → validate → ingest**
 
 ## Data Flow
 
-1.  The **Data Simulator** generates `clientes.csv` and `vendas.csv` files and uploads them to the `raw/` directory in the `datalake` bucket in MinIO.
-2.  The `S3KeySensor` in the Airflow DAG detects the new files.
-3.  The DAG triggers a **Spark job**.
-4.  The Spark job reads the CSV files from the `raw/` directory, infers the schema, and converts them to Parquet format.
-5.  The Parquet files are written to the `bronze/` directory in the `datalake` bucket, partitioned by dataset (`clientes` or `vendas`).
-6.  The data from the Parquet files is then loaded into the `clientes` and `vendas` tables in the **PostgreSQL** database.
+```
+raw/clientes/*.csv  ─┐
+                     ├→ S3KeySensor → Filter New Files → Validate → Delta Lake → PostgreSQL
+raw/vendas/*.csv    ─┘
+```
 
-## Data Contracts
+1. O **Data Simulator** gera `clientes_*.csv` e `vendas_*.csv` e envia para `s3a://datalake/raw/`
+2. O `S3KeySensor` detecta os novos arquivos no MinIO
+3. O DAG filtra arquivos já processados via metadata no PostgreSQL
+4. O **Spark Validation Job** valida cada arquivo contra os contratos de dados
+5. O **Spark Ingest Job** converte para **Delta Lake** em `s3a://datalake/bronze/`
+6. Os dados são carregados nas tabelas staging do **PostgreSQL**
 
-Data contracts are defined in the `contracts/` directory. They describe the expected schema for the data at different stages of the pipeline.
+## Documentation
 
-*   `clientes.json`: Schema for the customers data.
-*   `vendas.json`: Schema for the sales data.
-*   `sales_contract.json`: Data quality rules for the sales data, to be used with a framework like Great Expectations.
-
-These contracts are crucial for ensuring data quality and consistency.
+- [Architecture](docs/architecture.md) — Visão geral dos componentes e fluxo de dados
+- [Data Model](docs/data-model.md) — Schemas, contratos e modelo de dados
+- [Troubleshooting](docs/troubleshooting.md) — Problemas comuns e soluções
 
 ## Contributing
 
-Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute to this project.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details.

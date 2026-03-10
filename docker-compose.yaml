@@ -225,6 +225,7 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/plugins:/opt/airflow/plugins
       - ./airflow/logs:/opt/airflow/logs
+      - ./spark-events:/opt/spark/spark-events
 
 networks:
   airflow-net:

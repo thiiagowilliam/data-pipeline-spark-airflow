@@ -71,3 +71,4 @@ terraform.rc
 
 logs/*
 jars/*
+spark-events/*
