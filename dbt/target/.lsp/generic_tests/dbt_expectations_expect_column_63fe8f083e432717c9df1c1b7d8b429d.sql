@@ -1,0 +1,1 @@
+{{ dbt_expectations.test_expect_column_values_to_be_between(column_name="price", max_value=20000.0, min_value=0.01, model=get_where_subquery(ref('stg_vendas'))) }}

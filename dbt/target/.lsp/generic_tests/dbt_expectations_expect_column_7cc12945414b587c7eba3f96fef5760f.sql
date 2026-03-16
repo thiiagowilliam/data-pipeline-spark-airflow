@@ -1,0 +1,1 @@
+{{ dbt_expectations.test_expect_column_values_to_be_of_type(column_name="qty", column_type="INTEGER", model=get_where_subquery(ref('stg_vendas'))) }}

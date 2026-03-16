@@ -1,0 +1,13 @@
+# dbt/profiles.yml
+pyspark_basic_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('DB_HOST', 'postgres') }}"
+      port: "{{ env_var('DB_PORT', 5432) | int }}"
+      user: "{{ env_var('DB_USER', 'airflow') }}"
+      pass: "{{ env_var('DB_PASSWORD', 'airflow') }}"
+      dbname: "{{ env_var('DB_NAME', 'airflow') }}"
+      schema: public
+      threads: 1

@@ -1,0 +1,12 @@
+{
+  "type": "struct",
+  "fields": [
+    {"name": "id", "type": "integer", "nullable": true, "metadata": {}},
+    {"name": "cliente_id", "type": "integer", "nullable": true, "metadata": {}},
+    {"name": "produto_id", "type": "integer", "nullable": true, "metadata": {}},
+    {"name": "data_venda", "type": "date", "nullable": true, "metadata": {}},
+    {"name": "valor_total", "type": "double", "nullable": true, "metadata": {}},
+    {"name": "quantidade", "type": "integer", "nullable": true, "metadata": {}},
+    {"name": "metodo_pagto", "type": "string", "nullable": true, "metadata": {}}
+  ]
+}

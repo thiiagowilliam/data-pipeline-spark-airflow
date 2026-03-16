@@ -1,0 +1,3 @@
+# Ignore Spark job scripts — they are NOT Airflow DAGs.
+# These files are submitted to Spark via SparkSubmitOperator.
+scripts/

@@ -1,0 +1,13 @@
+{
+  "type": "struct",
+  "fields": [
+    {"name": "id", "type": "integer", "nullable": true, "metadata": {}},
+    {"name": "nome", "type": "string", "nullable": true, "metadata": {}},
+    {"name": "email", "type": "string", "nullable": true, "metadata": {}},
+    {"name": "telefone", "type": "string", "nullable": true, "metadata": {}},
+    {"name": "cidade", "type": "string", "nullable": true, "metadata": {}},
+    {"name": "estado", "type": "string", "nullable": true, "metadata": {}},
+    {"name": "data_cadastro", "type": "date", "nullable": true, "metadata": {}},
+    {"name": "status", "type": "string", "nullable": true, "metadata": {}}
+  ]
+}

@@ -1,0 +1,10 @@
+pandas==2.2.1
+numpy==1.26.4
+faker==19.13.0
+boto3==1.34.57
+pyspark==3.5.0
+python-dotenv==1.0.1
+pytest==8.1.1
+moto==5.0.2
+flake8==7.0.0
+black==24.3.0

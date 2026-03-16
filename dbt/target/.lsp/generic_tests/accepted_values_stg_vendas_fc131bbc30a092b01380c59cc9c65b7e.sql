@@ -1,0 +1,1 @@
+{{ test_accepted_values(column_name="product", model=get_where_subquery(ref('stg_vendas')), values=["Laptop","Mouse","Keyboard","Monitor","Webcam","Docking Station","Headset"]) }}
