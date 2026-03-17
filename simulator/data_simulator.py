@@ -1,8 +1,10 @@
 import os
 import io
+import json
 import logging
 import time
 from datetime import datetime
+from glob import glob
 from typing import Dict, Any, List
 
 import numpy as np
@@ -19,8 +21,8 @@ ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
 SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
 BUCKET_NAME = os.getenv("MINIO_BUCKET_NAME", "datalake")
 
-CLIENT_ROWS = int(os.getenv("CLIENT_ROWS", "550000"))
-SALES_ROWS = int(os.getenv("SALES_ROWS", "700000"))
+CLIENT_ROWS = int(os.getenv("CLIENT_ROWS", "55000"))
+SALES_ROWS = int(os.getenv("SALES_ROWS", "70000"))
 INTERVAL_SECONDS = int(os.getenv("INTERVAL_SECONDS", "300"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -28,32 +30,44 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 class DataGenerator:
     def __init__(self, fake_instance: Faker):
         self.fake = fake_instance
-
-    def generate_clients(self, num_rows: int = CLIENT_ROWS) -> pd.DataFrame:
-        logging.info(f"Gerando {num_rows} clientes...")
-        data: Dict[str, Any] = {
-            "id": np.arange(1, num_rows + 1),
-            "nome": [self.fake.name() for _ in range(num_rows)],
-            "email": [self.fake.email() for _ in range(num_rows)],
-            "telefone": [self.fake.phone_number() for _ in range(num_rows)],
-            "cidade": [self.fake.city() for _ in range(num_rows)],
-            "estado": [self.fake.state_abbr() for _ in range(num_rows)],
-            "data_cadastro": [self.fake.date_between(start_date="-2y", end_date="today") for _ in range(num_rows)],
-            "status": np.random.choice(["Ativo", "Inativo", "Pendente"], num_rows),
+        # Mapeamento de nomes de campos para funções do Faker
+        self.faker_map = {
+            "nome": self.fake.name,
+            "email": self.fake.email,
+            "telefone": self.fake.phone_number,
+            "cidade": self.fake.city,
+            "estado": self.fake.state_abbr,
+            "data_cadastro": lambda: self.fake.date_between(start_date="-2y", end_date="today"),
+            "data_venda": lambda: datetime.now().date(),
+            "status": lambda: np.random.choice(["Ativo", "Inativo", "Pendente"]),
+            "metodo_pagto": lambda: np.random.choice(["Cartão de Crédito", "Boleto", "PIX", "Dinheiro"]),
         }
-        return pd.DataFrame(data)
 
-    def generate_sales(self, num_rows: int = SALES_ROWS) -> pd.DataFrame:
-        logging.info(f"Gerando {num_rows} vendas...")
-        data: Dict[str, Any] = {
-            "id": np.arange(1, num_rows + 1),
-            "cliente_id": np.random.randint(1, CLIENT_ROWS, size=num_rows),
-            "produto_id": np.random.randint(1, 1000, size=num_rows),
-            "data_venda": [datetime.now().date()] * num_rows,
-            "valor_total": np.round(np.random.uniform(10.0, 5000.0, size=num_rows), 2),
-            "quantidade": np.random.randint(1, 10, size=num_rows),
-            "metodo_pagto": np.random.choice(["Cartão de Crédito", "Boleto", "PIX", "Dinheiro"], num_rows),
-        }
+    def generate_from_schema(self, schema_path: str, num_rows: int) -> pd.DataFrame:
+        with open(schema_path, 'r') as f:
+            contract = json.load(f)
+        
+        fields = contract.get("fields", [])
+        data = {}
+
+        for field in fields:
+            name = field["name"]
+            dtype = field["type"]
+
+            if name == "id":
+                data[name] = np.arange(1, num_rows + 1)
+            elif "id" in name:
+                data[name] = np.random.randint(1, 1000, size=num_rows)
+            elif name in self.faker_map:
+                data[name] = [self.faker_map[name]() for _ in range(num_rows)]
+            else:
+                if dtype == "integer":
+                    data[name] = np.random.randint(1, 100, size=num_rows)
+                elif dtype == "double":
+                    data[name] = np.round(np.random.uniform(10.0, 5000.0, size=num_rows), 2)
+                else:
+                    data[name] = [self.fake.word() for _ in range(num_rows)]
+        
         return pd.DataFrame(data)
 
 class MinioUploader:
@@ -93,19 +107,23 @@ class Simulation:
     def __init__(self, generator: DataGenerator, uploader: MinioUploader):
         self.generator = generator
         self.uploader = uploader
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.contracts_dir = os.path.normpath(os.path.join(script_dir, "../contracts"))
 
     def run(self):
-        logging.info("Iniciando simulador de ingestão de dados...")
+        logging.info("Iniciando simulador baseado em contratos...")
         self.uploader.create_bucket()
 
         while True:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            json_files = glob(os.path.join(self.contracts_dir, "*.json"))
 
-            df_clients = self.generator.generate_clients()
-            self.uploader.upload_to_minio(df_clients, "clientes", f"clientes_{timestamp}.csv")
-
-            df_sales = self.generator.generate_sales()
-            self.uploader.upload_to_minio(df_sales, "vendas", f"vendas_{timestamp}.csv")
+            for file_path in json_files:
+                file_name = os.path.basename(file_path)
+                contract_name = file_name.replace(".json", "")
+                rows = SALES_ROWS if "venda" in contract_name else CLIENT_ROWS
+                df = self.generator.generate_from_schema(file_path, rows)
+                self.uploader.upload_to_minio(df, contract_name, f"{contract_name}_{timestamp}.csv")
 
             logging.info(f"Aguardando {INTERVAL_SECONDS / 60:.0f} minutos para próxima execução...")
             time.sleep(INTERVAL_SECONDS)

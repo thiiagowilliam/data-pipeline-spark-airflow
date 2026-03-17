@@ -30,13 +30,20 @@ SPARK_CONF = {
     "spark.shuffle.service.enabled": "false",
     "spark.executor.instances": "1",
     "spark.executor.cores": "2",
-    "spark.executor.memory": "1g"
+    "spark.executor.memory": "1g",
+    "spark.hadoop.fs.s3a.endpoint": "http://minio:9000",
+    "spark.hadoop.fs.s3a.access.key": "minioadmin",
+    "spark.hadoop.fs.s3a.secret.key": "minioadmin",
+    "spark.hadoop.fs.s3a.path.style.access": "true",
+    "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
 }
 
 SPARK_CONF_BQ = SPARK_CONF.copy()
 SPARK_CONF_BQ["spark.hadoop.google.cloud.auth.service.account.enable"] = "true"
 SPARK_CONF_BQ["spark.hadoop.google.cloud.auth.service.account.json.keyfile"] = "/opt/airflow/dags/credentials/gcp_key.json"
 
+SPARK_JOBS_PATH = "/opt/airflow/dags/scripts/spark_jobs"
 
 def on_failure(context: dict) -> None:
     ti = context["task_instance"]
@@ -71,13 +78,16 @@ with DAG(
     catchup=False,
     tags=["spark", "minio", "etl", "delta-lake", "bigquery"],
     max_active_runs=1,
+    params={
+        "MINIO_BUCKET_NAME": "datalake",
+    },
 ) as dag:
 
     wait_for_file = S3KeySensor(
         task_id="wait_for_s3_file",
-        bucket_name="{{ params.minio_bucket_name }}",
-        bucket_key="raw/*/*.csv",
-        aws_conn_id="{{ params.minio_conn_id }}",
+        bucket_name="{{ params.MINIO_BUCKET_NAME }}",
+        bucket_key="raw/clientes/*.csv",
+        aws_conn_id="aws_default",
         wildcard_match=True,
         timeout=3600 * 2,
         mode="reschedule",
@@ -86,23 +96,22 @@ with DAG(
 
     raw_to_bronze_delta_ingestion = SparkSubmitOperator(
         task_id="raw_to_bronze_delta_ingestion",
-        application="/opt/airflow/dags/scripts/spark_jobs/bronze_bucket.py",
+        application=f"{SPARK_JOBS_PATH}/bronze_bucket.py",
         conn_id="spark_default",
         name="BronzeForge_DeltaWriter",
         conf=SPARK_CONF,
         packages=SPARK_PACKAGES,
         application_args=[
-            "{{ ds }}",
-            "s3a://{{ params.minio_bucket_name }}/raw/clientes/",
-            "s3a://{{ params.minio_bucket_name }}/raw/vendas/"
+            "clientes",
+            "s3a://{{ params.MINIO_BUCKET_NAME }}/raw/clientes",
+            "s3a://{{ params.MINIO_BUCKET_NAME }}/bronze_layer/clientes",
+            "{{ ds }}"
         ],
     )
 
-    
-
     raw_to_bronze_bigquery_ingestion = SparkSubmitOperator(
         task_id="raw_to_bronze_bigquery_ingestion",
-        application="/opt/airflow/dags/scripts/spark_jobs/bronze_bigquery.py",
+        application=f"{SPARK_JOBS_PATH}/bronze_bigquery.py",
         conn_id="spark_default",
         name="BronzeForge_BigqueryWriter",
         conf=SPARK_CONF_BQ,
@@ -110,9 +119,8 @@ with DAG(
         application_args=[
             "{{ ds }}",
             "resolve-ai-407701",
-            "{{ params.gcs_temp_bucket }}",
-            "s3a://{{ params.minio_bucket_name }}/bronze_layer/clientes",
-            "s3a://{{ params.minio_bucket_name }}/bronze_layer/vendas"
+            "s3a://{{ params.MINIO_BUCKET_NAME }}/bronze_layer/clientes",
+            "s3a://{{ params.MINIO_BUCKET_NAME }}/bronze_layer/vendas"
         ],
     )
 
@@ -141,8 +149,8 @@ with DAG(
             log.info(f"Deletado original: {key}")
 
     archive_files = move_raw_to_archive(
-        bucket_name="{{ params.minio_bucket_name }}",
-        aws_conn_id="{{ params.minio_conn_id }}"
+        bucket_name="{{ params.MINIO_BUCKET_NAME }}",
+        aws_conn_id="aws_default"
     )
 
     wait_for_file >> raw_to_bronze_delta_ingestion >> raw_to_bronze_bigquery_ingestion >> archive_files

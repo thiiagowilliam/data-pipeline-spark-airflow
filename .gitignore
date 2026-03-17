@@ -73,3 +73,4 @@ logs/*
 jars/*
 spark-events/*dbt/profiles.yml
 .venv/*
+*key*
