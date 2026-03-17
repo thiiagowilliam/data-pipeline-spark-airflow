@@ -1,1 +1,0 @@
-{{ test_not_null(column_name="price", model=get_where_subquery(ref('stg_vendas'))) }}

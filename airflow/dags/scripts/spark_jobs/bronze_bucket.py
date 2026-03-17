@@ -40,7 +40,7 @@ def process_and_save_delta(raw_path: str, spark: SparkSession, dataset: str, del
     if df.isEmpty():
         log.warning("Nenhum dado encontrado para %s. Pulando...", dataset)
         return 
-    
+
     save_delta(df, spark, delta_path, dataset, execution_date)
 
 

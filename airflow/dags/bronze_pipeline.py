@@ -64,7 +64,7 @@ def on_sla_miss(dag, task_list, blocking_task_list, slas, blocking_tis) -> None:
     )
 
 with DAG(
-    dag_id="bronze_data",
+    dag_id="data_bronze",
     render_template_as_native_obj=True,
     default_args={
         "owner": "data-engineering",
@@ -94,8 +94,8 @@ with DAG(
         sla=timedelta(hours=2),
     )
 
-    raw_to_bronze_delta_ingestion = SparkSubmitOperator(
-        task_id="raw_to_bronze_delta_ingestion",
+    raw_to_bronze_delta_clientes_ingestion = SparkSubmitOperator(
+        task_id="raw_to_bronze_delta_clientes_ingestion",
         application=f"{SPARK_JOBS_PATH}/bronze_bucket.py",
         conn_id="spark_default",
         name="BronzeForge_DeltaWriter",
@@ -109,18 +109,32 @@ with DAG(
         ],
     )
 
-    raw_to_bronze_bigquery_ingestion = SparkSubmitOperator(
-        task_id="raw_to_bronze_bigquery_ingestion",
+    validate_bronze_clientes = SparkSubmitOperator(
+        task_id="validate_bronze_clientes",
+        application=f"{SPARK_JOBS_PATH}/bronze_validation.py",
+        conn_id="spark_default",
+        name="BronzeForge_Validator",
+        conf=SPARK_CONF,
+        packages=SPARK_PACKAGES,
+        application_args=[
+            "clientes",
+            "s3a://{{ params.MINIO_BUCKET_NAME }}/bronze_layer/clientes",
+            "{{ ds }}"
+        ],
+    )
+
+    raw_to_bronze_bigquery_clients_ingestion = SparkSubmitOperator(
+        task_id="raw_to_bronze_bigquery_clients_ingestion",
         application=f"{SPARK_JOBS_PATH}/bronze_bigquery.py",
         conn_id="spark_default",
         name="BronzeForge_BigqueryWriter",
         conf=SPARK_CONF_BQ,
         packages=SPARK_PACKAGES_WITH_BQ,
         application_args=[
-            "{{ ds }}",
+            "clientes",
             "resolve-ai-407701",
             "s3a://{{ params.MINIO_BUCKET_NAME }}/bronze_layer/clientes",
-            "s3a://{{ params.MINIO_BUCKET_NAME }}/bronze_layer/vendas"
+            "{{ ds }}"
         ],
     )
 
@@ -153,4 +167,4 @@ with DAG(
         aws_conn_id="aws_default"
     )
 
-    wait_for_file >> raw_to_bronze_delta_ingestion >> raw_to_bronze_bigquery_ingestion >> archive_files
+    wait_for_file >> raw_to_bronze_delta_clientes_ingestion >> validate_bronze_clientes >> raw_to_bronze_bigquery_clients_ingestion >> archive_files
