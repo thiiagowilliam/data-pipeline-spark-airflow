@@ -1,6 +1,11 @@
 locals {
-  schemas = jsondecode(file("${path.root}/../contracts/schemas.json"))
-  unique_datasets = distinct([for k, v in local.schemas : v.dataset])
+  contract_files = fileset("${path.root}/../contracts", "*.json")
+
+  schemas = {
+    for f in local.contract_files :
+    replace(f, ".json", "") => jsondecode(file("${path.root}/../contracts/${f}"))
+  }
+  unique_datasets = distinct([for k, v in local.schemas : try(v.dataset, "default_dataset")])
 }
 
 resource "google_bigquery_dataset" "this" {
