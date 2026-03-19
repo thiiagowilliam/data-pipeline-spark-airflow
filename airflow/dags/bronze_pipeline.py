@@ -12,17 +12,15 @@ from airflow.decorators import task
 
 log = logging.getLogger(__name__)
 
-SPARK_PACKAGES = (
-    "io.delta:delta-spark_2.12:3.2.0,"
-    "org.apache.hadoop:hadoop-aws:3.3.4,"
-    "com.amazonaws:aws-java-sdk-bundle:1.12.540"
-)
+SPARK_PACKAGES = "io.delta:delta-spark_2.13:4.0.0"
 
-SPARK_PACKAGES_WITH_BQ = f"{SPARK_PACKAGES},com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.36.1"
+SPARK_PACKAGES_WITH_BQ = f"{SPARK_PACKAGES},com.google.cloud.spark:spark-bigquery-with-dependencies_2.13:0.36.1"
+
+SPARK_JARS = "/opt/airflow/jars/hadoop-aws-3.4.1.jar,/opt/airflow/jars/bundle-2.28.15.jar"
 
 SPARK_CONF = {
-    "spark.pyspark.python": "/usr/bin/python3",
-    "spark.pyspark.driver.python": "/usr/bin/python3",
+    "spark.pyspark.python": "python3",
+    "spark.pyspark.driver.python": "python3",
     "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
     "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog",
     "spark.eventLog.enabled": "false", 
@@ -31,13 +29,16 @@ SPARK_CONF = {
     "spark.executor.instances": "1",
     "spark.executor.cores": "2",
     "spark.executor.memory": "1g",
+    "spark.rpc.message.maxSize": "1024",
     "spark.hadoop.fs.s3a.endpoint": "http://minio:9000",
+    "spark.hadoop.fs.s3a.endpoint.region": "us-east-1", 
     "spark.hadoop.fs.s3a.access.key": "minioadmin",
     "spark.hadoop.fs.s3a.secret.key": "minioadmin",
     "spark.hadoop.fs.s3a.path.style.access": "true",
     "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
 }
+
 
 SPARK_CONF_BQ = SPARK_CONF.copy()
 SPARK_CONF_BQ["spark.hadoop.google.cloud.auth.service.account.enable"] = "true"
@@ -90,6 +91,7 @@ with DAG(
         aws_conn_id="aws_default",
         wildcard_match=True,
         timeout=3600 * 2,
+        deferrable=True,
         mode="reschedule",
         sla=timedelta(hours=2),
     )
@@ -101,6 +103,7 @@ with DAG(
         name="BronzeForge_DeltaWriter",
         conf=SPARK_CONF,
         packages=SPARK_PACKAGES,
+        jars=SPARK_JARS,
         application_args=[
             "clientes",
             "s3a://{{ params.MINIO_BUCKET_NAME }}/raw/clientes",
@@ -115,6 +118,7 @@ with DAG(
         conn_id="spark_default",
         name="BronzeForge_Validator",
         conf=SPARK_CONF,
+        jars=SPARK_JARS,
         packages=SPARK_PACKAGES,
         application_args=[
             "clientes",
@@ -130,6 +134,7 @@ with DAG(
         name="BronzeForge_BigqueryWriter",
         conf=SPARK_CONF_BQ,
         packages=SPARK_PACKAGES_WITH_BQ,
+        jars=SPARK_JARS,
         application_args=[
             "clientes",
             "resolve-ai-407701",
@@ -167,4 +172,4 @@ with DAG(
         aws_conn_id="aws_default"
     )
 
-    wait_for_file >> raw_to_bronze_delta_clientes_ingestion >> validate_bronze_clientes >> raw_to_bronze_bigquery_clients_ingestion >> archive_files
+    wait_for_file >> raw_to_bronze_delta_clientes_ingestion >> validate_bronze_clientes >> [raw_to_bronze_bigquery_clients_ingestion >> archive_files]

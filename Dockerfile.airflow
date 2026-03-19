@@ -1,23 +1,38 @@
-FROM apache/airflow:2.11.1-python3.11
+FROM apache/airflow:3.1.8
+
+ARG AIRFLOW_VERSION=3.1.8
 
 USER root
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        default-jdk-headless && \
+        default-jdk-headless \
+        curl && \
     rm -rf /var/lib/apt/lists/*
 
 ENV JAVA_HOME=/usr/lib/jvm/default-java
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
+# Match Spark image versions
+ENV HADOOP_AWS_VERSION=3.4.1
+ENV AWS_SDK_VERSION=2.28.15
+
+RUN mkdir -p /opt/airflow/jars && \
+    curl -o /opt/airflow/jars/hadoop-aws-${HADOOP_AWS_VERSION}.jar \
+        https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/${HADOOP_AWS_VERSION}/hadoop-aws-${HADOOP_AWS_VERSION}.jar && \
+    curl -o /opt/airflow/jars/bundle-${AWS_SDK_VERSION}.jar \
+        https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/${AWS_SDK_VERSION}/bundle-${AWS_SDK_VERSION}.jar && \
+    chmod 644 /opt/airflow/jars/*.jar
+
 USER airflow
 
-COPY requirements.txt /
-RUN pip install --no-cache-dir -r /requirements.txt
-
 RUN pip install --no-cache-dir \
-    apache-airflow-providers-apache-spark \
-    apache-airflow-providers-amazon \
-    airflow-provider-great-expectations \
-    "apache-airflow[google]" \
-    pyspark==3.5.1
+    "apache-airflow-providers-apache-spark" \
+    "apache-airflow-providers-amazon" \
+    "apache-airflow-providers-google" \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-3.12.txt"
+    
+RUN pip install --no-cache-dir \
+    "airflow-provider-great-expectations>=1.0.0" \
+    "great_expectations==1.15.1" \
+    "pyspark==4.1.1"
