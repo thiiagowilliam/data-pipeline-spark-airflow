@@ -12,13 +12,17 @@ from airflow.decorators import task
 
 log = logging.getLogger(__name__)
 
-SPARK_PACKAGES = "io.delta:delta-spark_2.13:4.0.0"
+SPARK_PACKAGES = "io.delta:delta-spark_4.1_2.13:4.1.0"
 
-SPARK_PACKAGES_WITH_BQ = f"{SPARK_PACKAGES},com.google.cloud.spark:spark-bigquery-with-dependencies_2.13:0.36.1"
+SPARK_PACKAGES_WITH_BQ = (
+    f"{SPARK_PACKAGES},"
+    "com.google.cloud.spark:spark-4.1-bigquery:0.44.0-preview"
+)
 
 SPARK_JARS = "/opt/airflow/jars/hadoop-aws-3.4.1.jar,/opt/airflow/jars/bundle-2.28.15.jar"
 
 SPARK_CONF = {
+    "spark.jars.ivy": "/tmp/.ivy2",
     "spark.pyspark.python": "python3",
     "spark.pyspark.driver.python": "python3",
     "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
@@ -36,7 +40,9 @@ SPARK_CONF = {
     "spark.hadoop.fs.s3a.secret.key": "minioadmin",
     "spark.hadoop.fs.s3a.path.style.access": "true",
     "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
-    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider",
+    "spark.sql.legacy.allowUntypedScalaUDF": "true",
+    "spark.databricks.delta.retentionDurationCheck.enabled": "false"
 }
 
 
@@ -135,6 +141,8 @@ with DAG(
         conf=SPARK_CONF_BQ,
         packages=SPARK_PACKAGES_WITH_BQ,
         jars=SPARK_JARS,
+        verbose=True,
+        execution_timeout=timedelta(minutes=10),
         application_args=[
             "clientes",
             "resolve-ai-407701",
@@ -142,6 +150,7 @@ with DAG(
             "{{ ds }}"
         ],
     )
+
 
     @task(task_id="move_raw_to_archive")
     def move_raw_to_archive(bucket_name: str, aws_conn_id: str):
@@ -172,4 +181,4 @@ with DAG(
         aws_conn_id="aws_default"
     )
 
-    wait_for_file >> raw_to_bronze_delta_clientes_ingestion >> validate_bronze_clientes >> [raw_to_bronze_bigquery_clients_ingestion >> archive_files]
+    wait_for_file >> raw_to_bronze_delta_clientes_ingestion >> validate_bronze_clientes >> raw_to_bronze_bigquery_clients_ingestion >> archive_files

@@ -1,17 +1,17 @@
 # ====================== ANCHORS ======================
 x-airflow-common-env: &airflow-common-env
-  AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+  AIRFLOW__CORE__EXECUTOR: LocalExecutor
   AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
   AIRFLOW__CORE__FERNET_KEY: '88WScV_Yf2_myQmpdzOX-9mccM5xy9Ua-wMah5mn78M='
+  AIRFLOW__WEBSERVER__SECRET_KEY: '88WScV_Yf2_myQmpdzOX-9mccM5xy9Ua-wMah5mn78M='
   AIRFLOW__API_AUTH__JWT_SECRET: '88WScV_Yf2_myQmpdzOX-9mccM5xy9Ua-wMah5mn78M='
   AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
   AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-  AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-  AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
   AIRFLOW__OPERATORS__DEFAULT_QUEUE: default
   PYTHONPATH: /opt/airflow/dags:/opt/airflow/dags/scripts
   AIRFLOW__API__BASE_URL: http://airflow-api-server:8080
-
+  AIRFLOW__CORE__KEEPALIVE_ZOMBIE_THRESHOLD: '300'
+  AIRFLOW__SCHEDULER__SCHEDULER_HEARTBEAT_SEC: '30'
   AWS_ACCESS_KEY_ID: minioadmin
   AWS_SECRET_ACCESS_KEY: minioadmin
   AWS_DEFAULT_REGION: us-east-1
@@ -50,15 +50,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    networks:
-      - airflow-net
-
-  redis:
-    image: redis:7-alpine
-    container_name: airflow_redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
     networks:
       - airflow-net
 
@@ -123,7 +114,6 @@ services:
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
       - ./contracts:/opt/airflow/dags/contracts 
-      - ./airflow/dags/scripts:/opt/spark/work-dir
       - ./spark-events:/opt/spark/spark-events
     environment:
       - SPARK_MODE=worker
@@ -164,8 +154,6 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-      redis:
-        condition: service_started
       spark-master:
         condition: service_started
     user: "0:0"
@@ -194,7 +182,6 @@ services:
       - ./airflow/plugins:/opt/airflow/plugins
       - ./airflow/logs:/opt/airflow/logs
     
-
   airflow-api-server:
     <<: *airflow-common
     container_name: airflow-api-server
@@ -205,7 +192,6 @@ services:
     ports:
       - "8085:8080"
     command: api-server
-
     volumes:
       - ./contracts:/opt/airflow/dags/contracts
       - ./airflow/dags:/opt/airflow/dags
@@ -230,21 +216,8 @@ services:
     container_name: airflow-dag-processor
     user: "0:0"
     command: dag-processor
-
-  airflow-worker:
-    <<: *airflow-common
-    container_name: airflow-worker
-    restart: unless-stopped
     depends_on:
       - airflow-init
-      - spark-master
-    command: airflow celery worker
-    volumes:
-      - ./contracts:/opt/airflow/dags/contracts
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/plugins:/opt/airflow/plugins
-      - ./airflow/logs:/opt/airflow/logs
-      - ./spark-events:/opt/spark/spark-events
 
 networks:
   airflow-net:
@@ -253,5 +226,3 @@ networks:
 volumes:
   postgres_data:
   minio_data:
-
-  
