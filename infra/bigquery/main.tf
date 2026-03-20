@@ -5,53 +5,62 @@ locals {
     for f in local.contract_files :
     replace(f, ".json", "") => jsondecode(file("${path.root}/../contracts/${f}"))
   }
-  unique_datasets = distinct([for k, v in local.schemas : try(v.dataset, "default_dataset")])
+
+  datasets = {
+    bronze = "bronze"
+    silver = "silver"
+    gold   = "gold"
+  }
+
+  bigquery_schemas = {
+    for name, cfg in local.schemas :
+    name => [
+      for field in cfg.fields : {
+        name        = field.name
+        type        = upper(field.type)
+        mode        = field.nullable ? "NULLABLE" : "REQUIRED"
+        description = try(field.metadata.description, null)
+      }
+    ]
+  }
 }
 
 resource "google_bigquery_dataset" "this" {
-  for_each   = toset(local.unique_datasets) 
-  project    = var.project_id
-  dataset_id = each.key
-
-  friendly_name = "${each.key}_layer"
-  description   = "Camada ${each.key} gerenciada via Data Contract"
+  for_each      = local.datasets
+  project       = var.project_id
+  dataset_id    = each.value
+  friendly_name = "${each.value}_layer"
+  description   = "Camada ${each.value} gerenciada via Terraform"
   location      = var.location
+
   labels = {
-    env      = var.env
-    managed  = "terraform"
-    layer    = each.key
+    env     = var.env
+    managed = "terraform"
+    layer   = each.value
   }
+
   default_encryption_configuration {
     kms_key_name = var.kms_key
   }
 }
 
 resource "google_bigquery_table" "this" {
-  project    = var.project_id
   for_each   = local.schemas
-  
-  dataset_id = google_bigquery_dataset.this[each.value.dataset].dataset_id
-  table_id   = try(each.value.table_name, each.key)
-  description = try(each.value.description, "Tabela da camada ${each.value.dataset}")
+  project    = var.project_id
+  dataset_id = google_bigquery_dataset.this["bronze"].dataset_id
+  table_id   = each.key
 
-  schema     = jsonencode(each.value.columns)
-  clustering = try(each.value.cluster_fields, [])
+  description = "Tabela ${each.key} gerenciada via Data Contract"
+  schema      = jsonencode(local.bigquery_schemas[each.key])
 
-  deletion_protection = var.env == "prod" ? true : false
-
-  dynamic "time_partitioning" {
-    for_each = try(each.value.partition_field, null) != null ? [1] : []
-    content {
-      type  = "DAY"
-      field = each.value.partition_field
-    }
-  }
-  labels = {
-    env   = var.env
-    layer = each.value.dataset
-  }
+  deletion_protection = var.env == "prod"
 
   lifecycle {
     ignore_changes = [encryption_configuration]
+  }
+
+  labels = {
+    env   = var.env
+    layer = "bronze"
   }
 }
