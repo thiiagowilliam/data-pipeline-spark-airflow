@@ -30,18 +30,10 @@ class ClientesValidator:
         self.df = df
         self.dataset_name = dataset_name
         self.contract_path = f"/opt/airflow/contracts/{dataset_name}.json"
-
-        # 1. Cria um Contexto Efêmero (em memória)
         self.context = gx.get_context()
-
-        # 2. Configura a Fonte de Dados e o Asset para o Spark
         self.datasource = self.context.data_sources.add_spark(name=f"spark_ds_{dataset_name}")
         self.data_asset = self.datasource.add_dataframe_asset(name=f"asset_{dataset_name}")
-        
-        # 3. Define como o lote de dados (batch) será construído
         self.batch_def = self.data_asset.add_batch_definition_whole_dataframe("whole_dataframe")
-
-        # 4. Inicia a Suite de Expectations
         self.suite = gx.ExpectationSuite(name=f"suite_{dataset_name}")
 
     def _check_schema(self):
@@ -50,41 +42,28 @@ class ClientesValidator:
                 contract = json.load(f)
             columns = [field["name"] for field in contract.get("fields", [])]
             for col_name in columns:
-                # Nova sintaxe orientada a objetos para as regras
                 self.suite.add_expectation(ExpectColumnToExist(column=col_name))
             logger.info(f"Schema validado contra contrato: {self.contract_path}")
 
     def execute_audit(self):
-        # Carrega as expectativas de schema
         self._check_schema()
-
-        # Adiciona as expectativas de negócio
         self.suite.add_expectation(ExpectColumnValuesToNotBeNull(column="id"))
         self.suite.add_expectation(ExpectColumnValuesToBeUnique(column="id"))
         self.suite.add_expectation(ExpectColumnValuesToNotBeNull(column="email"))
-        
         self.suite.add_expectation(
             ExpectColumnValuesToBeInSet(column="status", value_set=["Ativo", "Inativo", "Pendente"])
         )
-        
         self.suite.add_expectation(
             ExpectColumnValuesToMatchRegex(column="email", regex=r"^[\w\.-]+@[\w\.-]+\.\w+$")
         )
-
-        # Salva a suite no contexto
         self.context.suites.add(self.suite)
-
-        # 5. Cria a Definição de Validação juntando os Dados com a Suite
         validation_def = gx.ValidationDefinition(
             name=f"val_def_{self.dataset_name}",
             data=self.batch_def,
             suite=self.suite
         )
         self.context.validation_definitions.add(validation_def)
-
-        # 6. Executa a validação passando o DataFrame do Spark dinamicamente
         results = validation_def.run(batch_parameters={"dataframe": self.df})
-
         return results
 
 def normalize_data(df: DataFrame) -> DataFrame:
@@ -102,9 +81,7 @@ if __name__ == "__main__":
     dataset_name = sys.argv[1]
     delta_path   = sys.argv[2]
     exec_date    = sys.argv[3]
-
     spark = get_spark_session(f"Audit_{dataset_name}")
-
     try:
         raw_df = spark.read.format("delta").load(delta_path)
         daily_df = raw_df.filter(F.col("dt_ingestao") == exec_date)
@@ -118,12 +95,9 @@ if __name__ == "__main__":
         validator = ClientesValidator(clean_df, dataset_name)
         results = validator.execute_audit()
 
-        # Acessamos a propriedade .success do objeto ValidationResult
         if not results.success:
             logger.error(f"FALHA NO CONTRATO DE DADOS: {dataset_name}")
             quarantine_path = f"s3a://datalake/quarantine/{dataset_name}/dt={exec_date}"
-            
-            # Convertendo os resultados detalhados para dicionário para salvar na quarentena
             failure_details = str(results.to_json_dict())
             
             clean_df.withColumn("audit_failure_details", F.lit(failure_details)) \

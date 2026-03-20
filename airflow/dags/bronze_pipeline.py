@@ -73,12 +73,14 @@ def on_sla_miss(dag, task_list, blocking_task_list, slas, blocking_tis) -> None:
 with DAG(
     dag_id="data_bronze",
     render_template_as_native_obj=True,
-    default_args={
-        "owner": "data-engineering",
-        "retries": 2,
-        "retry_delay": timedelta(minutes=1),
-        "depends_on_past": False,
-        "on_failure_callback": on_failure,
+    default_args = {
+        'owner': 'thiago',
+        'depends_on_past': False,
+        'email_on_failure': False,
+        'email_on_retry': False,
+        'retries': 2,
+        'retry_delay': timedelta(minutes=5),
+        'execution_timeout': timedelta(hours=2),
     },
     start_date=datetime(2023, 1, 1),
     schedule="@daily",
