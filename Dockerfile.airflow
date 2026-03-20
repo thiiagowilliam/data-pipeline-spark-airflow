@@ -12,8 +12,6 @@ RUN apt-get update && \
 
 ENV JAVA_HOME=/usr/lib/jvm/default-java
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
-
-# Match Spark image versions
 ENV HADOOP_AWS_VERSION=3.4.1
 ENV AWS_SDK_VERSION=2.28.15
 
@@ -38,5 +36,6 @@ RUN pip install --no-cache-dir \
     "pyspark==4.1.1" \
     "pandas" \
     "google-cloud-bigquery" \
-    "db-dtypes"
-
+    "db-dtypes" \
+    "dbt-core" \
+    "dbt-bigquery"

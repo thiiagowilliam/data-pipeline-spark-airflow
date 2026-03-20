@@ -9,3 +9,4 @@ flake8==7.0.0
 black==24.3.0
 delta-spark>=4.0.0
 great-expectations==1.15.1
+astronomer-cosmos==1.0.3

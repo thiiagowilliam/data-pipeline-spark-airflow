@@ -23,9 +23,11 @@ x-airflow-common: &airflow-common
     dockerfile: Dockerfile.airflow
   user: "${AIRFLOW_UID:-50000}:0"
   volumes:
+    - ./contracts:/opt/airflow/dags/contracts
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs
     - ./airflow/plugins:/opt/airflow/plugins
+    - ./dbt:/opt/airflow/dbt:ro
   networks:
     - airflow-net
   environment: *airflow-common-env
@@ -176,12 +178,6 @@ services:
         --role Admin \
         --email admin@example.com
       "
-    volumes:
-      - ./contracts:/opt/airflow/dags/contracts
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/plugins:/opt/airflow/plugins
-      - ./airflow/logs:/opt/airflow/logs
-    
   airflow-api-server:
     <<: *airflow-common
     container_name: airflow-api-server
@@ -192,11 +188,6 @@ services:
     ports:
       - "8085:8080"
     command: api-server
-    volumes:
-      - ./contracts:/opt/airflow/dags/contracts
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/plugins:/opt/airflow/plugins
-      - ./airflow/logs:/opt/airflow/logs
 
   airflow-scheduler:
     <<: *airflow-common
@@ -205,11 +196,6 @@ services:
     depends_on:
       - airflow-init
     command: scheduler
-    volumes:
-      - ./contracts:/opt/airflow/dags/contracts
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/plugins:/opt/airflow/plugins
-      - ./airflow/logs:/opt/airflow/logs
 
   airflow-dag-processor:
     <<: *airflow-common
