@@ -1,0 +1,1 @@
+{{ test_unique(column_name="id_cliente", model=get_where_subquery(ref('cl_clientes'))) }}

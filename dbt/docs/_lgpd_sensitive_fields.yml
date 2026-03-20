@@ -1,0 +1,20 @@
+version: 2
+
+sensitive_fields:
+  - table: bronze.clientes
+    columns:
+      - nome: nome_completo
+        type: pii_direct
+        action: pseudonymize
+      - nome: email
+        type: pii_direct
+        action: pseudonymize
+      - nome: cpf
+        type: pii_direct
+        action: hash_sha256
+      - nome: telefone
+        type: pii_direct
+        action: mask_partial
+      - nome: data_nascimento
+        type: quasi_identifier
+        action: generalize_age

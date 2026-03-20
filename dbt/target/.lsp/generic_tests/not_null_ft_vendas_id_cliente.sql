@@ -1,0 +1,1 @@
+{{ test_not_null(column_name="id_cliente", model=get_where_subquery(ref('ft_vendas'))) }}

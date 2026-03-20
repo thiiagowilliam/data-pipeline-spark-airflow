@@ -1,0 +1,1 @@
+{{ test_not_null(column_name="nome_hash", model=get_where_subquery(ref('cl_clientes'))) }}

@@ -1,0 +1,13 @@
+bigquery:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: service-account
+      keyfile: /opt/airflow/gcp/service_account.json 
+      project: "{{ env_var('GCP_PROJECT_ID', 'local-dev-project') }}"
+      dataset: silver
+      threads: 4
+      timeout_seconds: 300
+      location: US
+      priority: interactive

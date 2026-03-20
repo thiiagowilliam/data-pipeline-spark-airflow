@@ -1,0 +1,31 @@
+name: 'data_pipeline'
+version: '1.0.0'
+config-version: 2
+
+profile: 'bigquery'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  data_pipeline:
+    silver:
+      +materialized: table
+      +schema: silver
+      +tags: "silver"
+    gold:
+      +materialized: table
+      +schema: gold
+      +tags: "gold"
+
+vars:
+  pii_policy_tag: "projects/{{ env_var('GCP_PROJECT_ID', 'local-dev-project') }}/locations/{{ env_var('GCP_LOCATION', 'us-central1') }}/taxonomies/lgpd-governanca-de-dados/policyTags/pii-informacao-pessoalmente-identificavel"

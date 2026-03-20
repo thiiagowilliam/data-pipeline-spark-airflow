@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: datamart_resumo_vendas_cliente
+    description: "Datamart com o resumo de compras por cliente, com dados PII protegidos."
+    columns:
+      - name: id_cliente
+        tests:
+          - unique
+          - not_null
+      - name: nome_hash
+        description: "Hash SHA256 do nome completo do cliente."
+        tags: ["pii"]
+        policy_tags:
+          - "{{ var('pii_policy_tag') }}"
+      - name: email_hash
+        description: "Hash SHA256 do email do cliente."
+        tags: ["pii"]
+        policy_tags:
+          - "{{ var('pii_policy_tag') }}"
+      - name: quantidade_compras
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+      - name: valor_total_comprado
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0

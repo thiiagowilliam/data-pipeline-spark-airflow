@@ -1,0 +1,61 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: "Camada de dados brutos, ingeridos do data lake."
+    database: "{{ env_var('GCP_PROJECT_ID', 'local-dev-project') }}"
+    schema: bronze
+    tables:
+      - name: clientes
+        description: "Tabela de clientes brutos."
+      - name: vendas
+        description: "Tabela de vendas brutas."
+
+models:
+  - name: cl_clientes
+    description: "Tabela dimensão de clientes com dados pessoais pseudonimizados."
+    columns:
+      - name: id_cliente
+        tests:
+          - unique
+          - not_null
+      - name: nome_hash
+        description: "Hash SHA256 do nome completo do cliente."
+        tags: ["pii"]
+        policy_tags:
+          - "{{ var('pii_policy_tag') }}"
+        tests:
+          - not_null
+      - name: email_hash
+        description: "Hash SHA256 do email do cliente."
+        tags: ["pii"]
+        policy_tags:
+          - "{{ var('pii_policy_tag') }}"
+        tests:
+          - not_null
+      - name: telefone_mascarado
+        description: "Telefone do cliente com máscara de proteção."
+        tags: ["pii"]
+        policy_tags:
+          - "{{ var('pii_policy_tag') }}"
+        tests:
+          - not_null
+
+  - name: ft_vendas
+    description: "Tabela fato de vendas."
+    columns:
+      - name: id_venda
+        tests:
+          - unique
+          - not_null
+      - name: id_cliente
+        tests:
+          - not_null
+          - relationships:
+              to: ref('cl_clientes')
+              field: id_cliente
+      - name: valor
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              row_condition: "status_entrega != 'cancelada'"
