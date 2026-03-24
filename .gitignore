@@ -1,79 +1,36 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtualenv
-.env
-.venv
-venv/
-ENV/
-env/
-env.bak/
-venv.bak/
-
-# IDEs / Editors
+# IDEs e Sistema
 .vscode/
 .idea/
+.DS_Store
+Thumbs.db
 *.swp
 *~
 
-# OS-specific
-.DS_Store
-Thumbs.db
+# Python & Ambientes
+**/__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+build/
+dist/
+*.egg-info/
 
-# Project-specific
-.local_volumes/
-minio_data/
-postgres_data/
-minio_root/
-data/
+# Airflow
 .airflow/
 airflow/logs/
+airflow/*.db
 airflow-*.pid
-*.log
-notebooks/.ipynb_checkpoints
-metastore_db/
-spark-warehouse/
-.pytest_cache/
+airflow/simple_auth_manager_passwords.json.generated
 
-
-# Terraform
-.terraform/
-*.tfstate
-*.tfstate.*
-*lock*
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-.terraformrc
-terraform.rc
-
-logs/*
-jars/*
-spark-events/*dbt/profiles.yml
-.venv/*
-*key*
-events/*
+# Credenciais
+**/credentials/*.json
+**/credentials/*.key
+*.pem
+*.crt
+*.p12
+secrets/
 
 # dbt
 dbt/target/
@@ -81,8 +38,25 @@ dbt/dbt_packages/
 dbt/logs/
 dbt/dbt_modules/
 
-# Airflow especificidades
-airflow/airflow.cfg
-airflow/simple_auth_manager_passwords.json.generated
-airflow/webserver_config.py
-airflow/*.db
+# Spark
+spark-warehouse/
+metastore_db/
+events/spark-events/
+
+# Dados
+data/raw/
+data/**/*.parquet
+database/*.db
+
+# Logs
+logs/
+*.log
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.lock.hcl
+
+jars/*
+data/*
