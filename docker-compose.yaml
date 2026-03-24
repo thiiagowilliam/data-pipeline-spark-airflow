@@ -16,20 +16,25 @@ x-airflow-common-env: &airflow-common-env
   AWS_SECRET_ACCESS_KEY: minioadmin
   AWS_DEFAULT_REGION: us-east-1
   MINIO_ENDPOINT: http://minio:9000
-
+  AIRFLOW__CORE__PARALLELISM: '2'
+  AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: '1'
 x-airflow-common: &airflow-common
   build:
     context: .
     dockerfile: Dockerfile.airflow
   user: "${AIRFLOW_UID:-50000}:0"
   volumes:
-    - ./contracts:/opt/airflow/dags/contracts
-    - ./airflow/dags:/opt/airflow/dags
-    - ./airflow/logs:/opt/airflow/logs
-    - ./airflow/plugins:/opt/airflow/plugins
+    - ./airflow:/opt/airflow
     - ./dbt:/opt/airflow/dbt:ro
+    - ./contracts:/opt/airflow/dags/contracts
+    - ./events/spark-events:/opt/spark/spark-events
   networks:
     - airflow-net
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
   environment: *airflow-common-env
 
 services:
@@ -90,7 +95,7 @@ services:
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
     volumes:
       - ./airflow/dags/scripts:/opt/spark/work-dir
-      - ./spark-events:/opt/spark/spark-events
+      - ./events/spark-events:/opt/spark/spark-events
     ports:
       - "7077:7077"
       - "8081:8080"
@@ -115,13 +120,13 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
-      - ./contracts:/opt/airflow/dags/contracts 
-      - ./spark-events:/opt/spark/spark-events
+      - ./contracts:/opt/airflow/contracts 
+      - ./events/spark-events:/opt/spark/spark-events
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=2g
-      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=1g
+      - SPARK_WORKER_CORES=1
       - SPARK_HISTORY_OPTS=-Dspark.history.fs.logDirectory=/opt/spark/spark-events
       - SPARK_EVENTLOG_ENABLED=true
       - SPARK_EVENTLOG_DIR=/opt/spark/spark-events
@@ -138,7 +143,7 @@ services:
       - SPARK_HISTORY_OPTS=-Dspark.history.fs.logDirectory=/opt/spark/spark-events
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.history.HistoryServer
     volumes:
-      - ./spark-events:/opt/spark/spark-events
+      - ./events/spark-events:/opt/spark/spark-events
     ports:
       - "18080:18080"
     networks:
@@ -156,8 +161,6 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-      spark-master:
-        condition: service_started
     user: "0:0"
     environment:
       <<: *airflow-common-env

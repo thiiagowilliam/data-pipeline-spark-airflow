@@ -1,42 +1,28 @@
--- models/gold/datamart_resumo_vendas_cliente.sql
+{{
+    config(
+        materialized='table',
+        cluster_by=['cliente_id', 'data_venda']
+    )
+}}
 
-{{ config(
-    materialized='table',
-    schema='gold'
-) }}
-
-WITH vendas AS (
-    SELECT * FROM {{ ref('ft_vendas') }}
+with vendas as (
+    select * from {{ ref('ft_vendas') }}
 ),
 
-clientes AS (
-    SELECT * FROM {{ ref('cl_clientes') }}
-),
-
-vendas_por_cliente AS (
-    SELECT
-        id_cliente,
-        COUNT(id_venda) AS quantidade_compras,
-        SUM(valor) AS valor_total_comprado,
-        MIN(data_venda) AS data_primeira_compra,
-        MAX(data_venda) AS data_ultima_compra
-    FROM vendas
-    GROUP BY 1
-),
-
-final AS (
-    SELECT
-        c.id_cliente,
-        c.nome_hash,
-        c.email_hash,
-        c.estado,
-        c.cidade,
-        COALESCE(vpc.quantidade_compras, 0) AS quantidade_compras,
-        COALESCE(vpc.valor_total_comprado, 0) AS valor_total_comprado,
-        vpc.data_primeira_compra,
-        vpc.data_ultima_compra
-    FROM clientes c
-    LEFT JOIN vendas_por_cliente vpc ON c.id_cliente = vpc.id_cliente
+clientes as (
+    select * from {{ ref('cl_clientes') }}
 )
 
-SELECT * FROM final
+select
+    v.venda_id,
+    c.cliente_id,
+    c.nome as cliente_nome,
+    c.cidade as cliente_cidade,
+    c.estado as cliente_estado,
+    v.produto_id,
+    v.data_venda,
+    v.valor_total,
+    v.quantidade,
+    v.metodo_pagto
+from vendas v
+left join clientes c on v.cliente_id = c.cliente_id

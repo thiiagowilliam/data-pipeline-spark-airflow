@@ -2,27 +2,24 @@ version: 2
 
 models:
   - name: datamart_resumo_vendas_cliente
-    description: "Datamart com o resumo de compras por cliente, com dados PII protegidos."
+    description: "Tabela denormalizada para análise de vendas por cliente."
     columns:
-      - name: id_cliente
+      - name: venda_id
+        description: "Chave primária da venda."
         tests:
           - unique
           - not_null
-      - name: nome_hash
-        description: "Hash SHA256 do nome completo do cliente."
-        tags: ["pii"]
-        policy_tags:
-          - "{{ var('pii_policy_tag') }}"
-      - name: email_hash
-        description: "Hash SHA256 do email do cliente."
-        tags: ["pii"]
-        policy_tags:
-          - "{{ var('pii_policy_tag') }}"
-      - name: quantidade_compras
+      - name: cliente_id
+        description: "Chave do cliente."
         tests:
-          - dbt_expectations.expect_column_values_to_be_between:
-              min_value: 0
-      - name: valor_total_comprado
-        tests:
-          - dbt_expectations.expect_column_values_to_be_between:
-              min_value: 0
+          - not_null
+      - name: cliente_nome
+        description: "Nome do cliente."
+      - name: cliente_cidade
+        description: "Cidade do cliente."
+      - name: cliente_estado
+        description: "Estado do cliente."
+      - name: data_venda
+        description: "Data da venda."
+      - name: valor_total
+        description: "Valor total da venda."

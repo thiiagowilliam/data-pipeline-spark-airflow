@@ -1,12 +1,48 @@
 {
-  "type": "struct",
+  "dataset": "vendas",
+  "description": "Contrato de qualidade para a tabela de vendas na camada Bronze.",
   "fields": [
-    {"name": "id", "type": "integer", "nullable": true, "metadata": {}},
-    {"name": "cliente_id", "type": "integer", "nullable": true, "metadata": {}},
-    {"name": "produto_id", "type": "integer", "nullable": true, "metadata": {}},
-    {"name": "data_venda", "type": "date", "nullable": true, "metadata": {}},
-    {"name": "valor_total", "type": "double", "nullable": true, "metadata": {}},
-    {"name": "quantidade", "type": "integer", "nullable": true, "metadata": {}},
-    {"name": "metodo_pagto", "type": "string", "nullable": true, "metadata": {}}
+    {
+      "name": "id", 
+      "type": "IntegerType", 
+      "not_null": true, 
+      "unique": true
+    },
+    {
+      "name": "cliente_id", 
+      "type": "IntegerType", 
+      "not_null": true
+    },
+    {
+      "name": "produto_id", 
+      "type": "IntegerType", 
+      "not_null": true
+    },
+    {
+      "name": "data_venda", 
+      "type": "DateType", 
+      "not_null": true
+    },
+    {
+      "name": "valor_total", 
+      "type": "DoubleType", 
+      "not_null": true
+    },
+    {
+      "name": "quantidade", 
+      "type": "IntegerType", 
+      "not_null": true
+    },
+    {
+      "name": "metodo_pagto", 
+      "type": "StringType", 
+      "not_null": true,
+      "in_set": ["Pix", "Cartao_Credito", "Cartao_Debito", "Boleto"]
+    },
+    {
+      "name": "dt_ingestao",
+      "type": "DateType",
+      "not_null": true
+    }
   ]
 }

@@ -60,8 +60,7 @@ spark-warehouse/
 .terraform/
 *.tfstate
 *.tfstate.*
-.terraform.lock.hcl   # opcional: alguns commitam, mas se não precisa de lock fixo, ignore
-terraform.tfvars
+*lock*
 override.tf
 override.tf.json
 *_override.tf
@@ -74,3 +73,16 @@ jars/*
 spark-events/*dbt/profiles.yml
 .venv/*
 *key*
+events/*
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/dbt_modules/
+
+# Airflow especificidades
+airflow/airflow.cfg
+airflow/simple_auth_manager_passwords.json.generated
+airflow/webserver_config.py
+airflow/*.db

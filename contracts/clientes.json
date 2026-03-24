@@ -1,13 +1,56 @@
 {
-  "type": "struct",
+  "dataset": "clientes",
+  "description": "Contrato de qualidade para a tabela de clientes na camada Bronze.",
   "fields": [
-    {"name": "id", "type": "integer", "nullable": true, "metadata": {}},
-    {"name": "nome", "type": "string", "nullable": true, "metadata": {}},
-    {"name": "email", "type": "string", "nullable": true, "metadata": {}},
-    {"name": "telefone", "type": "string", "nullable": true, "metadata": {}},
-    {"name": "cidade", "type": "string", "nullable": true, "metadata": {}},
-    {"name": "estado", "type": "string", "nullable": true, "metadata": {}},
-    {"name": "data_cadastro", "type": "date", "nullable": true, "metadata": {}},
-    {"name": "status", "type": "string", "nullable": true, "metadata": {}}
+    {
+      "name": "id", 
+      "type": "IntegerType", 
+      "not_null": true, 
+      "unique": true
+    },
+    {
+      "name": "nome", 
+      "type": "StringType", 
+      "not_null": true
+    },
+    {
+      "name": "email", 
+      "type": "StringType", 
+      "not_null": true, 
+      "regex": "^[\\w\\.-]+@[\\w\\.-]+\\.\\w+$"
+    },
+    {
+      "name": "telefone", 
+      "type": "StringType", 
+      "not_null": true, 
+      "regex": "^[\\d\\s\\+\\-]+$"
+    },
+    {
+      "name": "cidade", 
+      "type": "StringType", 
+      "not_null": true
+    },
+    {
+      "name": "estado", 
+      "type": "StringType", 
+      "not_null": true, 
+      "regex": "^[A-Z]{2}$"
+    },
+    {
+      "name": "data_cadastro", 
+      "type": "DateType", 
+      "not_null": true
+    },
+    {
+      "name": "status", 
+      "type": "StringType",
+      "not_null": true,
+      "in_set": ["Ativo", "Inativo", "Pendente"]
+    },
+    {
+      "name": "dt_ingestao",
+      "type": "DateType",
+      "not_null": true
+    }
   ]
 }

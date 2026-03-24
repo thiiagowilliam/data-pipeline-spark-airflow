@@ -12,14 +12,18 @@ from airflow.decorators import task
 
 log = logging.getLogger(__name__)
 
-SPARK_PACKAGES = "io.delta:delta-spark_4.1_2.13:4.1.0"
+SPARK_PACKAGES = ",".join([
+    "io.delta:delta-spark_4.1_2.13:4.1.0",
+    "org.apache.hadoop:hadoop-aws:3.4.1",
+    "software.amazon.awssdk:bundle:2.30.0"
+])
 
 SPARK_PACKAGES_WITH_BQ = (
     f"{SPARK_PACKAGES},"
     "com.google.cloud.spark:spark-4.1-bigquery:0.44.0-preview"
 )
 
-SPARK_JARS = "/opt/airflow/jars/hadoop-aws-3.4.1.jar,/opt/airflow/jars/bundle-2.28.15.jar"
+SPARK_JARS = "/opt/spark/jars/hadoop-aws-3.4.1.jar,/opt/airflow/jars/aws-sdk-bundle-2.30.0.jar"
 
 SPARK_CONF = {
     "spark.jars.ivy": "/tmp/.ivy2",
@@ -27,12 +31,21 @@ SPARK_CONF = {
     "spark.pyspark.driver.python": "python3",
     "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
     "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog",
-    "spark.eventLog.enabled": "false", 
     "spark.dynamicAllocation.enabled": "false",
     "spark.shuffle.service.enabled": "false",
-    "spark.executor.instances": "1",
-    "spark.executor.cores": "2",
-    "spark.executor.memory": "1g",
+
+    "spark.eventLog.enabled": "true",
+    "spark.eventLog.dir": "file:/opt/spark/spark-events",
+
+    "spark.driver.memory": "512m",       
+    "spark.driver.cores": "1",           
+    "spark.executor.instances": "1",     
+    "spark.executor.cores": "1",         
+    "spark.executor.memory": "512m",     
+    
+    "spark.sql.shuffle.partitions": "2", 
+    "spark.default.parallelism": "2",    
+    
     "spark.rpc.message.maxSize": "1024",
     "spark.hadoop.fs.s3a.endpoint": "http://minio:9000",
     "spark.hadoop.fs.s3a.endpoint.region": "us-east-1", 
@@ -111,12 +124,14 @@ with DAG(
         name="BronzeForge_DeltaWriter",
         conf=SPARK_CONF,
         packages=SPARK_PACKAGES,
-        jars=SPARK_JARS,
         application_args=[
-            "clientes",
-            "s3a://{{ params.MINIO_BUCKET_NAME }}/raw/clientes",
-            "s3a://{{ params.MINIO_BUCKET_NAME }}/bronze_layer/clientes",
-            "{{ ds }}"
+            "--datalake", "datalake",
+            "--dataset", "clientes",
+            "--raw_path", "s3a://{{ params.MINIO_BUCKET_NAME }}/raw/clientes/*.csv",
+            "--delta_path", "s3a://{{ params.MINIO_BUCKET_NAME }}/bronze_layer/clientes",
+            "--execution_date", "{{ ds }}",
+            "--zorder_col", "id",
+
         ],
     )
 
@@ -126,12 +141,11 @@ with DAG(
         conn_id="spark_default",
         name="BronzeForge_Validator",
         conf=SPARK_CONF,
-        jars=SPARK_JARS,
         packages=SPARK_PACKAGES,
         application_args=[
-            "clientes",
-            "s3a://{{ params.MINIO_BUCKET_NAME }}/bronze_layer/clientes",
-            "{{ ds }}"
+            "--dataset", "clientes",
+            "--delta_path", "s3a://{{ params.MINIO_BUCKET_NAME }}/bronze_layer/clientes",
+            "--execution_date", "{{ ds }}"
         ],
     )
 
@@ -142,41 +156,40 @@ with DAG(
         name="BronzeForge_BigqueryWriter",
         conf=SPARK_CONF_BQ,
         packages=SPARK_PACKAGES_WITH_BQ,
-        jars=SPARK_JARS,
         verbose=True,
         execution_timeout=timedelta(minutes=10),
         application_args=[
-            "clientes",
-            "resolve-ai-407701",
-            "s3a://{{ params.MINIO_BUCKET_NAME }}/bronze_layer/clientes",
-            "{{ ds }}"
+            "--project_id", "resolve-ai-407701",
+            "--dataset", "clientes",
+            "--delta_path", "s3a://{{ params.MINIO_BUCKET_NAME }}/bronze_layer/clientes",
+            "--execution_date", "{{ ds }}"
         ],
     )
 
-
     @task(task_id="move_raw_to_archive")
-    def move_raw_to_archive(bucket_name: str, aws_conn_id: str):
+    def move_raw_to_archive(bucket_name: str, aws_conn_id: str, **kwargs):
         s3_hook = S3Hook(aws_conn_id=aws_conn_id)
-        keys = s3_hook.list_keys(bucket_name=bucket_name, prefix="raw/")
+        logical_date = kwargs['ds'] 
+        
+        keys = s3_hook.list_keys(bucket_name=bucket_name, prefix="raw/clientes/")
         if not keys:
-            log.info("Nenhum arquivo na pasta raw/.")
+            logging.info("Nenhum arquivo na pasta raw/clientes/.")
             return
 
         csv_keys = [k for k in keys if k.endswith('.csv')]
-        today = datetime.now().strftime("%Y-%m-%d")
 
         for key in csv_keys:
-            dest_key = key.replace("raw/", f"archives/{today}/", 1)
+            dest_key = key.replace("raw/clientes/", f"archives/clientes/{logical_date}/", 1)
             s3_hook.copy_object(
                 source_bucket_key=key,
                 dest_bucket_key=dest_key,
                 source_bucket_name=bucket_name,
                 dest_bucket_name=bucket_name
             )
-            log.info(f"Copiado: {key} → {dest_key}")
+            logging.info(f"Copiado: {key} → {dest_key}")
 
             s3_hook.delete_objects(bucket=bucket_name, keys=[key])
-            log.info(f"Deletado original: {key}")
+            logging.info(f"Deletado original: {key}")
 
     archive_files = move_raw_to_archive(
         bucket_name="{{ params.MINIO_BUCKET_NAME }}",

@@ -1,26 +1,26 @@
-{{ config(
-    materialized='table',
-    schema='silver'
-) }}
+{{
+    config(
+        materialized='incremental',
+        unique_key='cliente_id',
+        partition_by={
+            "field": "data_cadastro",
+            "data_type": "date"
+        }
+    )
+}}
 
-WITH source AS (
-    SELECT
-        id AS id_cliente,
+with source as (
+    select
+        id as cliente_id,
         nome,
         email,
         telefone,
-        estado,
         cidade,
-        _airbyte_emitted_at as data_inclusao
-    FROM {{ source('bronze', 'clientes') }}
+        estado,
+        status,
+        data_cadastro
+    from {{ source('clientes_bronze', 'bronze') }}
+    qualify row_number() over (partition by id order by data_cadastro desc) = 1
 )
 
-SELECT
-    id_cliente,
-    SHA256(nome) as nome_hash,
-    SHA256(email) as email_hash,
-    {{ mask_partial('telefone', 2, 4) }} as telefone_mascarado,
-    estado,
-    cidade,
-    data_inclusao
-FROM source
+select * from source

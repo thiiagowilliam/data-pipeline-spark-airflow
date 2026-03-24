@@ -1,1 +1,0 @@
-{{ test_not_null(column_name="id_cliente", model=get_where_subquery(ref('datamart_resumo_vendas_cliente'))) }}

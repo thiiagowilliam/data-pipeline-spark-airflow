@@ -1,26 +1,25 @@
-{{ config(
-    materialized='table',
-    schema='silver'
-) }}
+{{
+    config(
+        materialized='incremental',
+        unique_key='venda_id',
+        partition_by={
+            "field": "data_venda",
+            "data_type": "date"
+        }
+    )
+}}
 
-WITH source AS (
-    SELECT
-        id AS id_venda,
-        cliente_id AS id_cliente,
+with source as (
+    select
+        id as venda_id,
+        cliente_id,
+        produto_id,
         data_venda,
-        valor,
-        metodo_pagamento,
-        status_entrega,
-        _airbyte_emitted_at as data_inclusao
-    FROM {{ source('bronze', 'vendas') }}
+        valor_total,
+        quantidade,
+        metodo_pagto
+    from {{ source('vendas_bronze', 'bronze') }}
+    qualify row_number() over (partition by id order by data_venda desc) = 1
 )
 
-SELECT
-    id_venda,
-    id_cliente,
-    data_venda,
-    valor,
-    metodo_pagamento,
-    status_entrega,
-    data_inclusao
-FROM source
+select * from source

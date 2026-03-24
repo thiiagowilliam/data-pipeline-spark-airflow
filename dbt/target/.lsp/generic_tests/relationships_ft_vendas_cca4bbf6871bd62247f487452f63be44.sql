@@ -1,1 +1,0 @@
-{{ test_relationships(column_name="id_cliente", field="id_cliente", model=get_where_subquery(ref('ft_vendas')), to=ref('cl_clientes')) }}

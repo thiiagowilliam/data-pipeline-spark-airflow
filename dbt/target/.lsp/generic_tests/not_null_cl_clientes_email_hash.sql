@@ -1,1 +1,0 @@
-{{ test_not_null(column_name="email_hash", model=get_where_subquery(ref('cl_clientes'))) }}
