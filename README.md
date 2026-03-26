@@ -33,7 +33,7 @@ graph LR
 
     subgraph Storage & Datalake
         RAW["MinIO (S3) — Bucket: raw"]
-        BRONZE["MinIO (S3) — Bucket: bronze_layer<br/>(Formato Delta Lake)"]
+        BRONZE["MinIO (S3) — Bucket: bronze<br/>(Formato Delta Lake)"]
         ARCHIVE["MinIO (S3) — Bucket: archives"]
     end
     
@@ -70,7 +70,7 @@ graph LR
 
 -   **Orquestração (Apache Airflow)**: Utiliza o `CeleryExecutor` para distribuição de tarefas, permitindo a execução paralela e escalável dos processos. O `PostgreSQL` atua como metastore, e o `Redis` como message broker.
 -   **Processamento (Apache Spark)**: Cluster Standalone com 1 Master e 1 Worker. As aplicações Spark são submetidas pelo Airflow e executam a lógica de validação, transformação e carga. A configuração do Spark (`SPARK_CONF`) é centralizada no DAG e injetada nos jobs, garantindo consistência.
--   **Storage (MinIO)**: Atua como um Object Storage compatível com a API do Amazon S3. É utilizado para armazenar os dados nas camadas `raw`, `bronze_layer` (Delta Lake) e `archives`.
+-   **Storage (MinIO)**: Atua como um Object Storage compatível com a API do Amazon S3. É utilizado para armazenar os dados nas camadas `raw`, `bronze` (Delta Lake) e `archives`.
 -   **Data Warehouse (Google BigQuery)**: Armazena os dados processados e estruturados, prontos para consumo analítico.
 -   **Infraestrutura como Código (Terraform)**: Gerencia a criação do dataset e das tabelas no BigQuery, garantindo que a infraestrutura seja versionada e reprodutível.
 -   **Contêineres (Docker)**: Todos os serviços são isolados em contêineres Docker, gerenciados pelo `docker-compose.yaml`, o que simplifica o setup e elimina inconsistências entre ambientes.
@@ -88,7 +88,7 @@ O fluxo é orquestrado pela DAG `data_bronze` e segue as seguintes etapas:
     -   **Lógica**:
         -   Lê os arquivos CSV do diretório `raw/clientes`.
         -   Converte os dados para o formato Delta Lake.
-        -   Salva a tabela Delta no path `bronze_layer/clientes`. O modo de escrita é `append`, permitindo a ingestão incremental.
+        -   Salva a tabela Delta no path `bronze/clientes`. O modo de escrita é `append`, permitindo a ingestão incremental.
 
 3.  **Validação da Camada Bronze (`validate_bronze_clientes`)**:
     -   **Job**: `bronze_validation.py`.
@@ -172,7 +172,7 @@ O fluxo é orquestrado pela DAG `data_bronze` e segue as seguintes etapas:
     ```
 -   **Trigger da Pipeline**: A chegada dos arquivos no MinIO acionará a DAG automaticamente. O progresso pode ser acompanhado na UI do Airflow.
 -   **Verificação**:
-    -   **MinIO**: Verifique os buckets `bronze_layer` e `archives`.
+    -   **MinIO**: Verifique os buckets `bronze` e `archives`.
     -   **BigQuery**: Consulte as tabelas para confirmar a chegada dos novos dados.
     -   **Spark UI**: Analise os jobs concluídos para detalhes de performance.
 

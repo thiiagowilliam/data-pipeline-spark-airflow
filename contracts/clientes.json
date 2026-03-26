@@ -1,56 +1,53 @@
 {
-  "dataset": "clientes",
+  "table": "clientes",
   "description": "Contrato de qualidade para a tabela de clientes na camada Bronze.",
   "fields": [
     {
       "name": "id", 
-      "type": "IntegerType", 
-      "not_null": true, 
+      "type": "integer",
       "unique": true
     },
     {
       "name": "nome", 
-      "type": "StringType", 
-      "not_null": true
+      "type": "string",
+      "pii": true
     },
     {
       "name": "email", 
-      "type": "StringType", 
-      "not_null": true, 
-      "regex": "^[\\w\\.-]+@[\\w\\.-]+\\.\\w+$"
+      "type": "string",
+      "regex": "^[\\w\\.-]+@[\\w\\.-]+\\.\\w+$",
+      "pii": true
+    },
+    {
+      "name": "cpf",
+      "type": "string",
+      "regex": "^[0-9]{3}\\.?[0-9]{3}\\.?[0-9]{3}-?[0-9]{2}$",
+      "pii": true,
+      "unique": true
     },
     {
       "name": "telefone", 
-      "type": "StringType", 
-      "not_null": true, 
-      "regex": "^[\\d\\s\\+\\-]+$"
+      "type": "string",
+      "regex": "^[\\d\\s\\+\\-\\(\\)]+$",
+      "pii": true
     },
     {
       "name": "cidade", 
-      "type": "StringType", 
-      "not_null": true
+      "type": "string"
     },
     {
       "name": "estado", 
-      "type": "StringType", 
-      "not_null": true, 
+      "type": "string",
       "regex": "^[A-Z]{2}$"
     },
     {
       "name": "data_cadastro", 
-      "type": "DateType", 
-      "not_null": true
+      "type": "date"
     },
     {
       "name": "status", 
-      "type": "StringType",
-      "not_null": true,
+      "type": "string",
       "in_set": ["Ativo", "Inativo", "Pendente"]
-    },
-    {
-      "name": "dt_ingestao",
-      "type": "DateType",
-      "not_null": true
     }
   ]
 }

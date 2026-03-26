@@ -30,17 +30,20 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 class DataGenerator:
     def __init__(self, fake_instance: Faker):
         self.fake = fake_instance
-        # Mapeamento de nomes de campos para funções do Faker
         self.faker_map = {
             "nome": self.fake.name,
             "email": self.fake.email,
             "telefone": self.fake.phone_number,
+            "cpf": self.fake.cpf,
             "cidade": self.fake.city,
             "estado": self.fake.state_abbr,
             "data_cadastro": lambda: self.fake.date_between(start_date="-2y", end_date="today"),
             "data_venda": lambda: datetime.now().date(),
             "status": lambda: np.random.choice(["Ativo", "Inativo", "Pendente"]),
             "metodo_pagto": lambda: np.random.choice(["Cartão de Crédito", "Boleto", "PIX", "Dinheiro"]),
+            "dt_ingestao": lambda: datetime.now().strftime("%Y-%m-%d"),
+            "dt_ingest": lambda: datetime.now().strftime("%Y-%m-%d"),
+            "silver_processed": lambda: False
         }
 
     def generate_from_schema(self, schema_path: str, num_rows: int) -> pd.DataFrame:

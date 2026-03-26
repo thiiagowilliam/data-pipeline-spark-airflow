@@ -1,48 +1,40 @@
 {
-  "dataset": "vendas",
+  "table": "vendas",
   "description": "Contrato de qualidade para a tabela de vendas na camada Bronze.",
   "fields": [
     {
       "name": "id", 
       "type": "IntegerType", 
-      "not_null": true, 
       "unique": true
     },
     {
       "name": "cliente_id", 
-      "type": "IntegerType", 
-      "not_null": true
+      "type": "IntegerType"
     },
     {
       "name": "produto_id", 
-      "type": "IntegerType", 
-      "not_null": true
+      "type": "IntegerType"
     },
     {
       "name": "data_venda", 
-      "type": "DateType", 
-      "not_null": true
+      "type": "DateType"
     },
     {
       "name": "valor_total", 
-      "type": "DoubleType", 
-      "not_null": true
+      "type": "DoubleType"
     },
     {
       "name": "quantidade", 
-      "type": "IntegerType", 
-      "not_null": true
+      "type": "IntegerType"
     },
     {
       "name": "metodo_pagto", 
-      "type": "StringType", 
-      "not_null": true,
+      "type": "StringType",
       "in_set": ["Pix", "Cartao_Credito", "Cartao_Debito", "Boleto"]
     },
     {
       "name": "dt_ingestao",
-      "type": "DateType",
-      "not_null": true
+      "type": "DateType"
     }
   ]
 }

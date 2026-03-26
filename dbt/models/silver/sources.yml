@@ -1,0 +1,39 @@
+version: 2
+
+sources:
+  - name: bronze
+    database: "{{ env_var('GCP_PROJECT_ID') }}"
+    schema: bronze
+    tables:
+      - name: clientes
+        identifier: clientes
+        description: "Tabela de clientes ingerida do Data Lake (camada bronze)."
+        columns:
+          - name: id
+            description: "ID único do cliente."
+            tests:
+              - unique
+              - not_null
+          - name: nome
+            description: "Nome do cliente."
+          - name: email
+            description: "E-mail do cliente."
+            tests:
+              - unique
+              - not_null
+          - name: telefone
+            description: "Telefone de contato do cliente."
+          - name: data_nascimento
+            description: "Data de nascimento do cliente."
+          - name: cidade
+            description: "Cidade onde o cliente reside."
+          - name: estado
+            description: "Estado onde o cliente reside."
+          - name: pais
+            description: "País onde o cliente reside."
+          - name: data_inclusao
+            description: "Data em que o cliente foi incluído no sistema."
+        loaded_at_field: data_inclusao
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 24, period: hour}
