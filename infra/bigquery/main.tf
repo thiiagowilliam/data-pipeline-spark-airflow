@@ -35,11 +35,11 @@ locals {
           type        = lookup(local.type_mapping, lower(field.type), "STRING")
           mode        = try(field.not_null ? "REQUIRED" : "NULLABLE", "NULLABLE")
           description = try(field.description, "")
-        } if field.name != "dt_ingest" # <-- Ajustado para dt_ingest
+        } if field.name != "dt_ingest"
       ],
       [
         {
-          name        = "dt_ingest" # <-- Ajustado para alinhar com o PySpark
+          name        = "dt_ingest"
           type        = "DATE"
           mode        = "REQUIRED"
           description = "Data lógica de ingestão do registro (Chave de Partição)"

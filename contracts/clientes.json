@@ -37,8 +37,7 @@
     },
     {
       "name": "estado", 
-      "type": "string",
-      "regex": "^[A-Z]{2}$"
+      "type": "string"
     },
     {
       "name": "data_cadastro", 

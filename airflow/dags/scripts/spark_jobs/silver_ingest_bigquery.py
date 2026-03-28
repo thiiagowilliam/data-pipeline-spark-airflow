@@ -45,7 +45,7 @@ class FieldContract(BaseModel):
     not_null: bool = False
     regex: Optional[str] = None
     unique: bool = False
-    pii: bool = False  # <-- Adicionado para controle de privacidade
+    pii: bool = False 
 
 class Contract(BaseModel):
     dataset: str
@@ -77,7 +77,6 @@ class BigQueryLoadEngine:
             
         self.logger.info(f"Protegendo campos PII: {pii_fields}")
         for field in pii_fields:
-            # Aplicamos SHA-256 e convertemos para string para garantir compatibilidade no BQ
             df = df.withColumn(
                 field, 
                 F.sha2(F.col(field).cast("string"), 256)
@@ -86,18 +85,13 @@ class BigQueryLoadEngine:
 
     def transform(self, df: DataFrame) -> DataFrame:
         self.logger.info("Iniciando transformações: PII Protection + Metadados.")
-        
-        # 1. Proteção de dados sensíveis
         df = self._apply_pii_protection(df)
-        
-        # 2. Adição de metadados de auditoria para o BigQuery
         return df.withColumn("_bq_run_id", F.lit(self.config.run_id)) \
                  .withColumn("_bq_loaded_at", F.current_timestamp())
 
     def load(self, df: DataFrame):
         self.logger.info(f"Efetuando LOAD no BigQuery: {self.config.full_table_id}")
-        
-        # Aqui usamos o conector spark-bigquery
+    
         df.write.format("bigquery") \
             .option("table", self.config.full_table_id) \
             .option("writeMethod", "direct") \

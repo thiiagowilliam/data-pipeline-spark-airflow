@@ -1,19 +1,21 @@
 from __future__ import annotations
+
 import sys
 import logging
 import json
 import uuid
-from typing import List, Tuple
 import argparse
+from typing import List, Tuple
+from functools import reduce
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 from pyspark.sql import SparkSession, DataFrame, Window
-from delta.tables import DeltaTable
-from pyspark.sql import functions as F
+from pyspark.sql.functions import col, lit, when, date_format, trim, row_number
 from pyspark.sql.types import (
-    StructType, StructField, StringType, IntegerType,
-    BooleanType, DoubleType, DateType, TimestampType, LongType
+    StringType, IntegerType, BooleanType, DoubleType, DateType, TimestampType, LongType
 )
+from pyspark.storagelevel import StorageLevel
+from delta.tables import DeltaTable 
 
 from spark_config import get_spark_session
 
@@ -42,7 +44,6 @@ class FieldContract(BaseModel):
         clean = self.type.lower().strip()
         return SPARK_TYPE_MAP.get(clean, StringType())
 
-
 class DatasetContract(BaseModel):
     table: str
     description: str | None = None
@@ -55,143 +56,190 @@ class DataInfo(BaseModel):
     execution_date: str
 
 def parse_args() -> DataInfo:
-    parser = argparse.ArgumentParser(description="Bronze Ingest — CSV → Delta Lake")
+    parser = argparse.ArgumentParser(description="Bronze to Silver Ingest")
     parser.add_argument("--project_id", required=True)
     parser.add_argument("--datalake", required=True)
     parser.add_argument("--table", required=True)
     parser.add_argument("--execution_date", required=True)
     parsed = parser.parse_args()
-    return DataInfo(
-        project_id=parsed.project_id,
-        datalake=parsed.datalake,
-        table=parsed.table,
-        execution_date=parsed.execution_date
-    )
+    return DataInfo(**vars(parsed))
 
 def get_contract(table_name: str) -> DatasetContract:
     contract_path = f"{CONTRACTS_PATH}/{table_name}.json"
     try:
         with open(contract_path, "r", encoding="utf-8") as f:
-            json_data = json.load(f)
-        contract = DatasetContract(**json_data)
-        logging.info(f"Contrato {table_name} carregado com sucesso")
-        return contract
-    except FileNotFoundError:
-        logging.error(f"Contrato {table_name}.json não encontrado em {CONTRACTS_PATH}")
+            return DatasetContract(**json.load(f))
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Falha ao carregar contrato {table_name}: {e}")
         raise
-    except json.JSONDecodeError as e:
-        logging.error(f"Erro ao parsear JSON do contrato {table_name}: {e}")
-        raise
-    except ValidationError as e:
-        logging.error(f"Contrato inválido {table_name}: {e}")
-        raise
-
 
 class QualityAndIngest:
     def __init__(self, spark: SparkSession, info: DataInfo, contract: DatasetContract):
         self.spark = spark
-        self.project_id = info.project_id
-        self.datalake = info.datalake
+        self.info = info
         self.table = contract.table
         self.fields = contract.fields
-        self.execution_date = info.execution_date
         self.run_id = str(uuid.uuid4())
-        
-        base_logger = logging.getLogger(__name__)
-        base_logger.setLevel(logging.INFO)
+        self.repartition_col = "data_cadastro" 
+        self.bronze_path = f"s3a://{self.info.datalake}/bronze/{self.table}"
+        self.silver_path = f"s3a://{self.info.datalake}/silver/{self.table}"
+        self.quarantine_path = f"s3a://{self.info.datalake}/quarantine/{self.table}"
+        self.checkpoint = f"s3a://{self.info.datalake}/checkpoints/bronze_to_silver/{self.table}"
+        base_logger = logging.getLogger("BronzeToSilver")
         self.logger = logging.LoggerAdapter(base_logger, {"run_id": self.run_id})
+        self._apply_tuning()
 
-        self.bronze_path = f"s3a://{self.datalake}/bronze/{self.table}"
-        self.silver_path = f"s3a://{self.datalake}/silver/{self.table}"
-        self.quarantine_path = f"s3a://{self.datalake}/quarantine/{self.table}"
+    def _apply_tuning(self):
+        conf = self.spark.conf
+        conf.set("spark.sql.adaptive.enabled", "true")
+        conf.set("spark.sql.adaptive.coalescePartitions.enabled", "true")
+        conf.set("spark.sql.adaptive.skewJoin.enabled", "true")
+        conf.set("spark.sql.adaptive.localShuffleReader.enabled", "true")
+        conf.set("spark.sql.adaptive.advisoryPartitionSizeInBytes", "128m")
+        conf.set("spark.sql.shuffle.partitions", "200")
+        conf.set("spark.sql.files.maxPartitionBytes", "512m")
+        conf.set("spark.databricks.delta.optimizeWrite.enabled", "true")
+        conf.set("spark.databricks.delta.autoCompact.enabled", "true")
+        conf.set("spark.sql.autoBroadcastJoinThreshold", "300m")
+        conf.set("spark.sql.adaptive.optimizeSkewedJoin", "true")
 
-    def get_dataframe(self) -> DataFrame:
-        try:
-            return self.spark.read.format("delta").load(self.bronze_path) \
-                .filter(
-                    (F.col("dt_ingest") == self.execution_date) & 
-                    (F.col("silver_processed") == False)
-                )
-        except Exception as error:
-            self.logger.error(f"Erro ao ler tabela Bronze: {error}", exc_info=True)
-            raise error
+        self.logger.info("🚀 Tuning de produção aplicado (AQE full + Delta optimize)")
 
-    def validate_data(self, dataframe: DataFrame) -> Tuple[DataFrame, DataFrame]:
-        df = dataframe.withColumn("erros", F.lit(False))
-
-        for field in self.fields:
-            invalid_type = F.col(field.name).isNotNull() & \
-                           F.col(field.name).cast(field.spark_type).isNull()
-            
-            unique_value = F.lit(False)
-            if field.unique:
-                window_spec = Window.partitionBy(field.name)
-                unique_value = F.col(field.name).isNotNull() & (F.count("*").over(window_spec) > 1)
-
-
-            invalid_value = F.lit(False)
-            if field.in_set:
-                invalid_value = F.col(field.name).isNotNull() & \
-                                (~F.col(field.name).isin(field.in_set))
-                
-            invalid_regex = F.lit(False)
-            if field.regex:
-                invalid_regex = F.col(field.name).isNotNull() & \
-                                (~F.col(field.name).rlike(field.regex))
-
-            df = df.withColumn("erros", F.col("erros") | invalid_type | unique_value | invalid_value | invalid_regex)
-            
-        df_erros = df.filter(F.col("erros") == True).drop("erros")
-        df_validos = df.filter(F.col("erros") == False).drop("erros")
+    def validate(self, df: DataFrame) -> Tuple[DataFrame, DataFrame, DataFrame]:
         
-        return df_validos, df_erros
-    
-    def write_delta(self, df: DataFrame, path: str):
-        try:
-            df.write.format("delta") \
-                .mode("append") \
-                .option("replaceWhere", f"dt_ingest = '{self.execution_date}'") \
-                .partitionBy("dt_ingest") \
-                .save(path)
-            self.logger.info(f"Dados gravados com sucesso em {path}")
-        except Exception as e:
-            self.logger.error(f"Erro ao gravar dados em {path}: {e}", exc_info=True)
-            raise e
+        for field in self.fields:
+            df = df.withColumn(field.name, trim(col(field.name).cast("string")))
 
-    def update_bronze_status(self):
-        try:
-            bronze_table = DeltaTable.forPath(self.spark, self.bronze_path)
-            bronze_table.update(
-                condition=F.expr(f"dt_ingest = '{self.execution_date}' AND silver_processed = false"),
-                set={"silver_processed": F.lit(True)}
+        conditions = []
+        for field in self.fields:
+            if field.type.lower() not in ["string", "date", "timestamp"]:
+                invalid_type = col(field.name).isNotNull() & col(field.name).cast(field.spark_type).isNull()
+                conditions.append(invalid_type)
+
+            if field.regex:
+                invalid_regex = col(field.name).isNotNull() & (~col(field.name).rlike(field.regex))
+                conditions.append(invalid_regex)
+
+            if field.in_set:
+                invalid_value = col(field.name).isNotNull() & (~col(field.name).isin(field.in_set))
+                conditions.append(invalid_value)
+
+        cheap_errors = reduce(lambda x, y: x | y, conditions, lit(False)) if conditions else lit(False)
+        df_validate = df.withColumn("erros", cheap_errors)
+        df_validate = df_validate.withColumn(
+            self.repartition_col, 
+            when(col(self.repartition_col).isNotNull(), date_format(col(self.repartition_col), "yyyy-MM")).otherwise(lit(None))
+        )
+        
+        unique_fields = [f for f in self.fields if f.unique]
+        for field in unique_fields:
+            window = Window.partitionBy(field.name).orderBy(lit(1)) 
+            dup_col = f"dup_{field.name}"
+
+            df_validate = df_validate.withColumn(
+                dup_col,
+                when(
+                    col(field.name).isNotNull() & (row_number().over(window) > 1),
+                    lit(True)
+                ).otherwise(lit(False))
             )
-            self.logger.info("Status 'silver_processed' atualizado na camada Bronze com sucesso.")
-        except Exception as e:
-            self.logger.error(f"Erro ao atualizar status na camada Bronze: {e}", exc_info=True)
-            raise e
 
+            df_validate = df_validate.withColumn("erros", col("erros") | col(dup_col)).drop(dup_col)
+
+        df_validate.persist(StorageLevel.MEMORY_AND_DISK)
+        df_erros = df_validate.filter(col("erros") == True).drop("erros")
+        df_validos = df_validate.filter(col("erros") == False).drop("erros")
+
+        return df_validos, df_erros, df_validate
+
+    def _process_batch(self, batch_df: DataFrame, batch_id: int) -> None:
+        self.logger.info(f"Iniciando micro-batch ID: {batch_id}")
+        
+        if batch_df.isEmpty():
+            self.logger.info("Micro-batch vazio → pulando")
+            return
+
+        batch_df.persist(StorageLevel.MEMORY_AND_DISK)
+        df_validate = None
+        
+        try:
+            df_validos, df_erros, df_validate = self.validate(batch_df)
+            
+            if not df_erros.isEmpty():
+                self.logger.info("Enviando registros inválidos para quarentena")
+                (df_erros.write
+                    .format("delta")
+                    .mode("append")
+                    .partitionBy(self.repartition_col)
+                    .option("optimizeWrite", "true")
+                    .option("mergeSchema", "true")
+                    .save(self.quarantine_path))
+
+            if not df_validos.isEmpty():
+                casts = {f.name: col(f.name).cast(f.spark_type) for f in self.fields if f.name != self.repartition_col}
+                df_validos = df_validos.withColumns(casts)
+                
+                unique_keys = [f.name for f in self.fields if f.unique]
+                
+                if unique_keys and DeltaTable.isDeltaTable(self.spark, self.silver_path):
+                    self.logger.info(f"Realizando UPSERT na Silver usando as chaves: {unique_keys}")
+                    delta_silver = DeltaTable.forPath(self.spark, self.silver_path)
+                    merge_condition = " AND ".join([f"target.{key} = source.{key}" for key in unique_keys])
+                    (delta_silver.alias("target")
+                        .merge(
+                            df_validos.alias("source"),
+                            merge_condition
+                        )
+                        .whenMatchedUpdateAll()
+                        .whenNotMatchedInsertAll()
+                        .execute())
+                else:
+                    self.logger.info(f"Carga inicial ou sem chaves únicas. Gravando na Silver ({self.silver_path})")
+                    (df_validos.write
+                        .format("delta")
+                        .mode("append")
+                        .partitionBy(self.repartition_col)
+                        .option("optimizeWrite", "true")
+                        .save(self.silver_path))
+        finally:
+            batch_df.unpersist()
+            if df_validate is not None:
+                df_validate.unpersist()
+            self.logger.info(f"Micro-batch {batch_id} finalizado e memória liberada")
+
+    def run_pipeline(self):
+        self.logger.info(f"Iniciando pipeline Bronze → Silver: {self.bronze_path}")
+
+        if not DeltaTable.isDeltaTable(self.spark, self.bronze_path):
+            self.logger.warning(f"A tabela Bronze em {self.bronze_path} ainda não existe.")
+            return
+        
+        try:
+            df_stream = self.spark.readStream.format("delta").load(self.bronze_path)
+
+            query = (df_stream.writeStream
+                     .foreachBatch(self._process_batch)
+                     .option("checkpointLocation", self.checkpoint)
+                     .trigger(availableNow=True)
+                     .start())
+
+            query.awaitTermination()
+            self.logger.info("Pipeline Bronze → Silver concluído com sucesso!")
+
+        except Exception as e:
+            self.logger.error("Falha crítica no pipeline", exc_info=True)
+            raise
 
 if __name__ == "__main__":
-    spark = get_spark_session("Bronze To Silver Bucket Ingest")
-    info = parse_args()
-    contract = get_contract(info.table)
-    qi = QualityAndIngest(spark, info, contract)
+    spark = get_spark_session("Bronze_To_Silver_Quality")
+    try:
+        info = parse_args()
+        contract = get_contract(info.table)
+        engine = QualityAndIngest(spark, info, contract)
+        engine.run_pipeline()
 
-    dataframe = qi.get_dataframe()
-    dataframe.show(10)
-
-    if not dataframe.isEmpty():
-        df_validos, df_erros = qi.validate_data(dataframe)
-
-        if not df_validos.isEmpty():
-            qi.logger.info("Gravando registros válidos na Silver.")
-            qi.write_delta(df_validos, qi.silver_path)
-        
-        if not df_erros.isEmpty():
-            qi.logger.info("Gravando registros com erro na Quarentena.")
-            qi.write_delta(df_erros, qi.quarantine_path)
-        
-        qi.update_bronze_status()
-        
-    else:
-        qi.logger.info(f"Nenhum dado novo para processar em {info.execution_date}.")
+    except Exception as e:
+        logging.critical(f"Job falhou: {e}")
+        sys.exit(1)
+    finally:
+        spark.stop()
