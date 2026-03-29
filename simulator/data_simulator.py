@@ -41,9 +41,6 @@ class DataGenerator:
             "data_venda": lambda: datetime.now().date(),
             "status": lambda: np.random.choice(["Ativo", "Inativo", "Pendente"]),
             "metodo_pagto": lambda: np.random.choice(["Cartão de Crédito", "Boleto", "PIX", "Dinheiro"]),
-            "dt_ingestao": lambda: datetime.now().strftime("%Y-%m-%d"),
-            "dt_ingest": lambda: datetime.now().strftime("%Y-%m-%d"),
-            "silver_processed": lambda: False
         }
 
     def generate_from_schema(self, schema_path: str, num_rows: int) -> pd.DataFrame:

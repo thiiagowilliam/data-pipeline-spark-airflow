@@ -16,13 +16,16 @@ log = logging.getLogger(__name__)
 SPARK_PACKAGES = ",".join([
     "io.delta:delta-spark_4.1_2.13:4.1.0",
     "org.apache.hadoop:hadoop-aws:3.4.1",
-    "software.amazon.awssdk:bundle:2.30.0"
+    "software.amazon.awssdk:bundle:2.30.0",
+    "com.google.cloud.spark:spark-4.0-bigquery:0.44.1"
 ])
+
 CONF_SPARK = {
         "spark.hadoop.fs.s3a.endpoint": "{{ conn.aws_default.extra_dejson.endpoint_url }}", 
         "spark.hadoop.fs.s3a.access.key": "{{ conn.aws_default.extra_dejson.aws_access_key }}", 
         "spark.hadoop.fs.s3a.secret.key": "{{ conn.aws_default.extra_dejson.aws_secret_key }}"
-        }
+}
+
 
 SPARK_JOBS_PATH = "/opt/airflow/dags/scripts/spark_jobs"
 
@@ -42,11 +45,11 @@ with DAG(
         'depends_on_past': False,
         'on_failure_callback': on_failure,
         'retries': 2,
-        'retry_delay': timedelta(minutes=3),
+        'retry_delay': timedelta(minutes=60),
         'execution_timeout': timedelta(hours=1),
     },
     start_date=datetime(2023, 1, 1),
-    schedule="*/15 * * * *", 
+    schedule="* * 1 * *", 
     catchup=False,
     tags=["spark", "minio", "medallion", "delta"],
     max_active_runs=1,
@@ -121,7 +124,29 @@ with DAG(
         log.info(f"Sucesso: {len(keys)} arquivos movidos para archives.")
 
     move_archive = move_to_archive_task()
+
+    silver_bucket_to_bq = SparkSubmitOperator(
+        task_id="silver_bucket_to_bq",
+        application=f"{SPARK_JOBS_PATH}/silver_bucket_to_bq.py",
+        conn_id="spark_default",
+        name="Silver_BQ_{{ ds }}",
+        packages=SPARK_PACKAGES,
+        conf=CONF_SPARK,
+        env_vars={
+            "GCP_KEY_JSON": "{{ conn.google_cloud_default.extra | tojson }}"
+        },
+        application_args=[
+            "--project_id", "{{ params.PROJECT_ID }}",
+            "--datalake", "{{ params.MINIO_BUCKET_NAME }}",
+            "--layer", "silver",
+            "--table", "clientes",
+            "--execution_date", "{{ ds }}"
+        ],
+    )
     
     end = EmptyOperator(task_id="end")
 
-    start >> raw_to_bronze >> [move_archive, bronze_to_silver] >> end
+start >> raw_to_bronze
+raw_to_bronze >> bronze_to_silver >> silver_bucket_to_bq
+raw_to_bronze >> move_archive
+[silver_bucket_to_bq, move_archive] >> end

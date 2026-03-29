@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from pyspark.sql import functions as F
 from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.utils import AnalysisException
 
 from spark_config import get_spark_session
 
@@ -34,14 +35,22 @@ class ProcessData:
         self.execution_date = args.execution_date
         self.checkpoint = f"s3a://{self.datalake}/checkpoints/raw_to_bronze/{self.table}"
 
-    def read_csv(self) -> DataFrame:
+    def read_csv(self) -> DataFrame | None:
         raw_path = f"s3a://{self.datalake}/raw/{self.table}/"
         log.info(f"LENDO: {raw_path}")
         self.spark.conf.set("spark.sql.streaming.schemaInference", "true")
-        return (self.spark.readStream
-            .format("csv")
-            .option("header", "true")
-            .load(raw_path))
+        
+        try:
+            return (self.spark.readStream
+                .format("csv")
+                .option("header", "true")
+                .load(raw_path))
+                
+        except AnalysisException as e:
+            if "PATH_NOT_FOUND" in str(e) or "Path does not exist" in str(e):
+                log.warning(f"⚠️ O diretório {raw_path} não existe. Provavelmente não há arquivos novos para ingestão.")
+                return None
+            raise e
         
     def delta_write(self, dataframe: DataFrame):
         layer_path = f"s3a://{self.datalake}/{self.layer}/{self.table}"
@@ -86,7 +95,10 @@ if __name__ == "__main__":
     try:
         process_data = ProcessData(args, spark)
         dataframe = process_data.read_csv()
-        process_data.delta_write(dataframe)
+        if dataframe is not None:
+            process_data.delta_write(dataframe)
+        else:
+            log.info("Pulando etapa de gravação da Bronze. O Job será finalizado com sucesso.")
             
     except Exception as e:
         log.critical(f"Job Bronze falhou: {e}", exc_info=True)

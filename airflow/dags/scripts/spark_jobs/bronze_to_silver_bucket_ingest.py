@@ -10,7 +10,7 @@ from functools import reduce
 
 from pydantic import BaseModel, Field
 from pyspark.sql import SparkSession, DataFrame, Window
-from pyspark.sql.functions import col, lit, when, date_format, trim, row_number
+from pyspark.sql.functions import col, lit, when, date_format, trim, row_number, to_date
 from pyspark.sql.types import (
     StringType, IntegerType, BooleanType, DoubleType, DateType, TimestampType, LongType
 )
@@ -22,13 +22,13 @@ from spark_config import get_spark_session
 CONTRACTS_PATH = "/opt/airflow/dags/contracts"
 
 SPARK_TYPE_MAP = {
-    "stringtype": StringType(),
-    "integertype": IntegerType(),
-    "longtype": LongType(),
-    "doubletype": DoubleType(),
-    "booleantype": BooleanType(),
-    "datetype": DateType(),
-    "timestamptype": TimestampType(),
+    "string": StringType(),
+    "integer": LongType(),
+    "long": LongType(),
+    "double": DoubleType(),
+    "boolean": BooleanType(),
+    "date": DateType(),
+    "timestamp": TimestampType(),
 }
 
 class FieldContract(BaseModel):
@@ -55,6 +55,7 @@ class DataInfo(BaseModel):
     table: str
     execution_date: str
 
+
 def parse_args() -> DataInfo:
     parser = argparse.ArgumentParser(description="Bronze to Silver Ingest")
     parser.add_argument("--project_id", required=True)
@@ -80,7 +81,7 @@ class QualityAndIngest:
         self.table = contract.table
         self.fields = contract.fields
         self.run_id = str(uuid.uuid4())
-        self.repartition_col = "data_cadastro" 
+        self.repartition_col = "dt_ingest" 
         self.bronze_path = f"s3a://{self.info.datalake}/bronze/{self.table}"
         self.silver_path = f"s3a://{self.info.datalake}/silver/{self.table}"
         self.quarantine_path = f"s3a://{self.info.datalake}/quarantine/{self.table}"
@@ -88,6 +89,23 @@ class QualityAndIngest:
         base_logger = logging.getLogger("BronzeToSilver")
         self.logger = logging.LoggerAdapter(base_logger, {"run_id": self.run_id})
         self._apply_tuning()
+
+    def _apply_pii_protection(self, df: DataFrame) -> DataFrame:
+        pii_fields = [f.name for f in self.contract.fields if f.pii]
+        if not pii_fields:
+            return df
+        
+        self.logger.info(f"Protegendo campos PII (SHA-256): {pii_fields}")
+        for field in pii_fields:
+            if field in df.columns:
+                df = df.withColumn(field, F.sha2(F.col(field).cast("string"), 256))
+        return df
+
+    def transform(self, df: DataFrame) -> DataFrame:
+        self.logger.info("Iniciando transformações: PII Protection + Metadados.")
+        df = self._apply_pii_protection(df)
+        return df
+
 
     def _apply_tuning(self):
         conf = self.spark.conf
@@ -103,10 +121,8 @@ class QualityAndIngest:
         conf.set("spark.sql.autoBroadcastJoinThreshold", "300m")
         conf.set("spark.sql.adaptive.optimizeSkewedJoin", "true")
 
-        self.logger.info("🚀 Tuning de produção aplicado (AQE full + Delta optimize)")
 
     def validate(self, df: DataFrame) -> Tuple[DataFrame, DataFrame, DataFrame]:
-        
         for field in self.fields:
             df = df.withColumn(field.name, trim(col(field.name).cast("string")))
 
@@ -125,17 +141,13 @@ class QualityAndIngest:
                 conditions.append(invalid_value)
 
         cheap_errors = reduce(lambda x, y: x | y, conditions, lit(False)) if conditions else lit(False)
+
         df_validate = df.withColumn("erros", cheap_errors)
-        df_validate = df_validate.withColumn(
-            self.repartition_col, 
-            when(col(self.repartition_col).isNotNull(), date_format(col(self.repartition_col), "yyyy-MM")).otherwise(lit(None))
-        )
         
         unique_fields = [f for f in self.fields if f.unique]
         for field in unique_fields:
             window = Window.partitionBy(field.name).orderBy(lit(1)) 
             dup_col = f"dup_{field.name}"
-
             df_validate = df_validate.withColumn(
                 dup_col,
                 when(
@@ -144,27 +156,28 @@ class QualityAndIngest:
                 ).otherwise(lit(False))
             )
 
+          
             df_validate = df_validate.withColumn("erros", col("erros") | col(dup_col)).drop(dup_col)
-
+        df_validate = self.transform(df_validate)
         df_validate.persist(StorageLevel.MEMORY_AND_DISK)
         df_erros = df_validate.filter(col("erros") == True).drop("erros")
         df_validos = df_validate.filter(col("erros") == False).drop("erros")
 
         return df_validos, df_erros, df_validate
 
-    def _process_batch(self, batch_df: DataFrame, batch_id: int) -> None:
+
+    def _process_batch(self, dataframe: DataFrame, batch_id: int) -> None:
         self.logger.info(f"Iniciando micro-batch ID: {batch_id}")
         
-        if batch_df.isEmpty():
+        if dataframe.isEmpty():
             self.logger.info("Micro-batch vazio → pulando")
             return
-
-        batch_df.persist(StorageLevel.MEMORY_AND_DISK)
+        
+        dataframe.persist(StorageLevel.MEMORY_AND_DISK)
         df_validate = None
         
         try:
-            df_validos, df_erros, df_validate = self.validate(batch_df)
-            
+            df_validos, df_erros, df_validate = self.validate(dataframe)
             if not df_erros.isEmpty():
                 self.logger.info("Enviando registros inválidos para quarentena")
                 (df_erros.write
@@ -176,7 +189,7 @@ class QualityAndIngest:
                     .save(self.quarantine_path))
 
             if not df_validos.isEmpty():
-                casts = {f.name: col(f.name).cast(f.spark_type) for f in self.fields if f.name != self.repartition_col}
+                casts = {f.name: col(f.name).cast(f.spark_type) for f in self.fields}
                 df_validos = df_validos.withColumns(casts)
                 
                 unique_keys = [f.name for f in self.fields if f.unique]
@@ -202,7 +215,7 @@ class QualityAndIngest:
                         .option("optimizeWrite", "true")
                         .save(self.silver_path))
         finally:
-            batch_df.unpersist()
+            dataframe.unpersist()
             if df_validate is not None:
                 df_validate.unpersist()
             self.logger.info(f"Micro-batch {batch_id} finalizado e memória liberada")
@@ -241,5 +254,6 @@ if __name__ == "__main__":
     except Exception as e:
         logging.critical(f"Job falhou: {e}")
         sys.exit(1)
+    
     finally:
         spark.stop()

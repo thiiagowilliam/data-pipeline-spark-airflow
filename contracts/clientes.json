@@ -9,8 +9,7 @@
     },
     {
       "name": "nome", 
-      "type": "string",
-      "pii": true
+      "type": "string"
     },
     {
       "name": "email", 
@@ -40,7 +39,7 @@
       "type": "string"
     },
     {
-      "name": "data_cadastro", 
+      "name": "data_cadastro",
       "type": "date"
     },
     {
