@@ -70,7 +70,7 @@ sys.path.insert(
         / "airflow/dags/scripts/spark_jobs"
     ),
 )
-from validate import DataValidator, DataValidationError, ValidationReport  # noqa: E402
+from validate import DataValidator, DataValidationError, ValidationReport
 
 
 class TestSchemaValidation:
