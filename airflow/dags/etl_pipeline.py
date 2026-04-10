@@ -9,9 +9,11 @@ from airflow.operators.empty import EmptyOperator
 from airflow.decorators import task
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
-from cosmos import DbtTaskGroup, ProjectConfig, ProfileConfig, ExecutionConfig
+from cosmos import DbtTaskGroup, ProjectConfig, ProfileConfig, ExecutionConfig, RenderConfig
 
 log = logging.getLogger(__name__)
+
+DBT_PROJECT_PATH = "/opt/airflow/dbt"
 
 SPARK_PACKAGES = ",".join([
     "io.delta:delta-spark_4.1_2.13:4.1.0",
@@ -143,10 +145,27 @@ with DAG(
             "--execution_date", "{{ ds }}"
         ],
     )
+
+    gold_layer = DbtTaskGroup(
+        group_id="gold_layer",
+        project_config=ProjectConfig(DBT_PROJECT_PATH),
+        profile_config=ProfileConfig(
+            profile_name="bigquery",
+            target_name="dev",
+            profiles_yml_filepath=f"{DBT_PROJECT_PATH}/profiles.yml",
+        ),
+        render_config=RenderConfig(
+            select=["tag:gold"]
+        ),
+        operator_args={
+            "install_deps": True,
+            "full_refresh": False,
+        },
+    )
     
     end = EmptyOperator(task_id="end")
 
 start >> raw_to_bronze
-raw_to_bronze >> bronze_to_silver >> silver_bucket_to_bq
+raw_to_bronze >> bronze_to_silver >> silver_bucket_to_bq >> gold_layer >> end
 raw_to_bronze >> move_archive
-[silver_bucket_to_bq, move_archive] >> end
+move_archive >> end

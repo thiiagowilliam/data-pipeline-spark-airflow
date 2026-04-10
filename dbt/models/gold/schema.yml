@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: datamart_resumo_vendas_cliente
-    description: "Tabela denormalizada para análise de vendas por cliente."
+    description: "Tabela denormalizada para análise de vendas por cliente (Camada Gold)."
     columns:
       - name: venda_id
         description: "Chave primária da venda."
@@ -15,11 +15,55 @@ models:
           - not_null
       - name: cliente_nome
         description: "Nome do cliente."
+        tests:
+          - not_null
       - name: cliente_cidade
         description: "Cidade do cliente."
       - name: cliente_estado
         description: "Estado do cliente."
+      - name: produto_id
+        description: "ID do produto vendido."
+        tests:
+          - not_null
       - name: data_venda
         description: "Data da venda."
+        tests:
+          - not_null
       - name: valor_total
         description: "Valor total da venda."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: quantidade
+        description: "Quantidade de itens vendidos."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: metodo_pagto
+        description: "Método de pagamento utilizado."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["Cartão de Crédito", "Boleto", "PIX", "Dinheiro"]
+
+  - name: kpi_vendas_mensal
+    description: "Indicadores de vendas agregados por mês e estado."
+    columns:
+      - name: mes_venda
+        description: "Mês da venda (truncado para o primeiro dia)."
+        tests:
+          - not_null
+      - name: estado
+        description: "Estado do cliente."
+        tests:
+          - not_null
+      - name: total_vendas
+        description: "Número total de vendas realizadas no mês/estado."
+      - name: receita_total
+        description: "Faturamento bruto total."
+      - name: total_itens
+        description: "Volume total de produtos vendidos."
+      - name: ticket_medio
+        description: "Valor médio por venda."
